@@ -1,0 +1,68 @@
+import os
+from abc import ABC, abstractmethod
+import json
+from typing import Optional
+
+import httpx
+
+settings_state = {
+    "mode": os.getenv("LLM_MODE", "local"),
+    "api_key": os.getenv("LLM_API_KEY"),
+    "local_model": os.getenv("LLM_LOCAL_MODEL", "llama3"),
+}
+
+class BaseProvider(ABC):
+    @abstractmethod
+    def generate(self, prompt: str) -> str:  # pragma: no cover - simple stub
+        ...
+
+class LocalProvider(BaseProvider):
+    def _ollama_endpoint(self) -> str:
+        return os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
+
+    def _try_ollama(self, prompt: str) -> Optional[str]:
+        model = settings_state.get('local_model') or 'llama3'
+        url = self._ollama_endpoint().rstrip('/') + '/api/chat'
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": "你是资深量化与基本面结合的股票分析助手, 输出要结构化列出: 1) 概览 2) 短期动量 3) 波动与风险 4) 机会与关注点 5) 免责声明。避免过度乐观措辞。"},
+                {"role": "user", "content": prompt}
+            ],
+            "stream": False,
+        }
+        try:
+            with httpx.Client(timeout=30) as client:
+                resp = client.post(url, json=payload)
+            if resp.status_code != 200:
+                return None
+            data = resp.json()
+            # Ollama (non-stream) 返回包含 message/content
+            message = data.get('message') or {}
+            content = message.get('content')
+            if content:
+                return content.strip()
+            # 某些版本可能直接有 'content'
+            if 'content' in data and isinstance(data['content'], str):
+                return data['content'].strip()
+            return None
+        except Exception:
+            return None
+
+    def generate(self, prompt: str) -> str:
+        # 优先尝试本地 Ollama, 失败则回退占位文本
+        result = self._try_ollama(prompt)
+        if result:
+            return result
+        return f"[LOCAL MODEL {settings_state.get('local_model')}] (Ollama 不可用或调用失败, 使用占位结果) 摘要分析: 输入长度 {len(prompt)} 字符。"
+
+class CloudProvider(BaseProvider):
+    def generate(self, prompt: str) -> str:
+        # TODO: 使用 LiteLLM / OpenAI 接口
+        key = settings_state.get('api_key')
+        if not key:
+            return "[CLOUD] 缺少 API Key, 返回占位分析。"
+        return f"[CLOUD MODEL] 模拟调用完成。Prompt 长度 {len(prompt)} 字符。"
+
+def get_provider() -> BaseProvider:
+    return LocalProvider() if settings_state.get("mode") == "local" else CloudProvider()

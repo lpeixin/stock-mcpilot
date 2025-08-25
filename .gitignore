@@ -1,0 +1,113 @@
+# Root ignores
+###############################
+# Core Node / Frontend        #
+###############################
+node_modules/
+dist/
+frontend/dist/
+frontend/.vite/
+.vite/
+*.tsbuildinfo
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm/
+
+# Lockfiles (按需保留一个，如果未来需要可删除下列行)
+pnpm-lock.yaml
+yarn.lock
+
+###############################
+# Python / Backend            #
+###############################
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+coverage.xml
+htmlcov/
+.coverage*
+*.egg-info/
+.eggs/
+
+# Data / Cache / Artifacts
+backend/storage/*.db
+backend/storage/*.sqlite
+backend/storage/*.parquet
+backend/storage/cache/
+data/
+*.parquet
+
+###############################
+# Rust / Tauri                #
+###############################
+target/
+src-tauri/target/
+src-tauri/gen/
+src-tauri/bundled/
+*.dSYM/
+*.pdb
+
+###############################
+# Environment & Secrets       #
+###############################
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.crt
+secrets/
+
+###############################
+# OS Specific                 #
+###############################
+.DS_Store
+Thumbs.db
+Icon?
+ehthumbs.db
+Desktop.ini
+
+###############################
+# Editor / IDE                #
+###############################
+.vscode/
+.idea/
+*.swp
+*.swo
+*.orig
+*~
+*.iml
+
+###############################
+# Misc & Temp                 #
+###############################
+tmp/
+/tmp/
+temp/
+.cache/
+.parcel-cache/
+.eslintcache
+__generated__/
+*.pid
+*.pid.lock
+*.bak
+*.backup
+profiling/
+
+# Build outputs (desktop bundles)
+*.app
+*.dmg
+*.msi
+*.exe
+*.AppImage
+

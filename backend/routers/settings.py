@@ -1,0 +1,15 @@
+from fastapi import APIRouter
+from ..schemas.settings import SettingsUpdate, SettingsOut
+from ..providers.base import settings_state
+
+router = APIRouter()
+
+@router.get("/", response_model=SettingsOut)
+def get_settings():
+    return SettingsOut(**settings_state)
+
+@router.post("/", response_model=SettingsOut)
+def update_settings(payload: SettingsUpdate):
+    for k, v in payload.model_dump(exclude_unset=True).items():
+        settings_state[k] = v
+    return SettingsOut(**settings_state)
