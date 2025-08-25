@@ -1,8 +1,6 @@
 Stock MCPilot (Bilingual Documentation) / 中英文文档
 ====================================================
 
-English first · 中文在后。
-
 ---
 
 # 1. Overview (EN)
