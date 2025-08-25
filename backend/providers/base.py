@@ -9,6 +9,7 @@ settings_state = {
     "mode": os.getenv("LLM_MODE", "local"),
     "api_key": os.getenv("LLM_API_KEY"),
     "local_model": os.getenv("LLM_LOCAL_MODEL", "llama3"),
+    "language": os.getenv("APP_LANGUAGE", "en"),  # 'en' or 'zh'
 }
 
 class BaseProvider(ABC):
@@ -54,15 +55,21 @@ class LocalProvider(BaseProvider):
         result = self._try_ollama(prompt)
         if result:
             return result
-        return f"[LOCAL MODEL {settings_state.get('local_model')}] (Ollama 不可用或调用失败, 使用占位结果) 摘要分析: 输入长度 {len(prompt)} 字符。"
+        lang = settings_state.get('language', 'en')
+        if lang == 'zh':
+            return f"[LOCAL MODEL {settings_state.get('local_model')}] (Ollama 不可用或调用失败, 使用占位结果) 摘要分析: 输入长度 {len(prompt)} 字符。"
+        else:
+            return f"[LOCAL MODEL {settings_state.get('local_model')}] (Ollama unavailable, fallback placeholder). Prompt length {len(prompt)} chars."
 
 class CloudProvider(BaseProvider):
     def generate(self, prompt: str) -> str:
         # TODO: 使用 LiteLLM / OpenAI 接口
         key = settings_state.get('api_key')
+        lang = settings_state.get('language', 'en')
         if not key:
-            return "[CLOUD] 缺少 API Key, 返回占位分析。"
-        return f"[CLOUD MODEL] 模拟调用完成。Prompt 长度 {len(prompt)} 字符。"
+            return "[CLOUD] 缺少 API Key, 返回占位分析。" if lang == 'zh' else "[CLOUD] Missing API Key, placeholder analysis."
+        return (f"[CLOUD MODEL] 模拟调用完成。Prompt 长度 {len(prompt)} 字符。" if lang == 'zh' 
+                else f"[CLOUD MODEL] Mock call complete. Prompt length {len(prompt)} chars.")
 
 def get_provider() -> BaseProvider:
     return LocalProvider() if settings_state.get("mode") == "local" else CloudProvider()
