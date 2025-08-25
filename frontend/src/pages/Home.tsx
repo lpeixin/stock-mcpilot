@@ -32,7 +32,7 @@ const Home: React.FC = () => {
   return (
     <div>
       <SearchBar onSearch={doSearch} />
-  {data && <div className="mt-4"><CloseLineChart rows={data.rows} symbol={data.symbol} /></div>}
+  {data && <div className="mt-4"><CloseLineChart rows={data.rows} symbol={data.symbol} market={data.market} /></div>}
       <div className="mt-4 flex gap-2 items-start">
   <input value={question} onChange={e=>setQuestion(e.target.value)} placeholder={t('analysis.ask.placeholder')} className="border rounded px-3 py-2 flex-1" />
   <button disabled={!data} onClick={doAnalyze} className="bg-emerald-600 disabled:bg-gray-300 text-white rounded px-4 py-2 text-sm">{t('analysis.action')}</button>

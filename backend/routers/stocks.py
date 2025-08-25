@@ -1,9 +1,32 @@
 from datetime import date, timedelta
 from fastapi import APIRouter, HTTPException, Query
 from ..schemas.stocks import StockDailyResponse, StockAnalysisSummary
+from functools import lru_cache
+import yfinance as yf
 from ..storage.cache import get_price_data
 
 router = APIRouter()
+
+@lru_cache(maxsize=512)
+def _company_name(symbol: str, market: str):
+    # Determine yfinance symbol as in storage.cache._market_symbol
+    yf_symbol = symbol
+    if market == 'HK' and not yf_symbol.endswith('.HK'):
+        yf_symbol += '.HK'
+    if market == 'CN':
+        if symbol.startswith('6'):
+            yf_symbol += '.SS'
+        else:
+            yf_symbol += '.SZ'
+    try:
+        t = yf.Ticker(yf_symbol)
+        info = t.fast_info if hasattr(t, 'fast_info') else {}
+        name = getattr(t, 'info', {}).get('shortName') if hasattr(t, 'info') else None
+        if not name and isinstance(info, dict):
+            name = info.get('shortName') or info.get('longName')
+        return name
+    except Exception:
+        return None
 
 @router.get("/{symbol}", response_model=StockDailyResponse)
 def get_stock_daily(symbol: str, market: str = Query("US", regex="^(US|HK|CN)$"), days: int = 60):
@@ -33,11 +56,16 @@ def get_stock_daily(symbol: str, market: str = Query("US", regex="^(US|HK|CN)$")
             df_rows.drop(columns=['date'], inplace=True, errors='ignore')
         df_rows.rename(columns={index_name: 'date'}, inplace=True)
     rows = df_rows.to_dict(orient="records")
+    name_en = _company_name(symbol, market)
+    # Placeholder: Chinese name resolution could be added via akshare later.
+    name_zh = None
     return StockDailyResponse(
         symbol=symbol,
         market=market,
         start=str(df.index.min().date()),
         end=str(df.index.max().date()),
         rows=rows,
-        summary=summary
+        summary=summary,
+        company_name_en=name_en,
+        company_name_zh=name_zh
     )

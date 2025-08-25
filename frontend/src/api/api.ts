@@ -11,7 +11,7 @@ client.interceptors.response.use(r=>r, e=>{
 
 export interface StockRow { date: string; open: number; high: number; low: number; close: number; volume: number }
 export interface StockSummary { count: number; mean_close: number; vol_mean: number; return_pct: number; max_drawdown_pct: number; volatility_pct: number }
-export interface StockDailyResponse { symbol: string; market: string; start: string; end: string; rows: StockRow[]; summary: StockSummary }
+export interface StockDailyResponse { symbol: string; market: string; start: string; end: string; rows: StockRow[]; summary: StockSummary; company_name_en?: string | null; company_name_zh?: string | null }
 
 export async function fetchStock(symbol: string, market: string, days = 60) {
   const { data } = await client.get<StockDailyResponse>(`/stocks/${symbol}`, { params: { market, days } })

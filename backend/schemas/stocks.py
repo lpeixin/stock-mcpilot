@@ -34,3 +34,5 @@ class StockDailyResponse(BaseModel):
     end: str
     rows: list[dict]
     summary: StockAnalysisSummary
+    company_name_en: str | None = None
+    company_name_zh: str | None = None
