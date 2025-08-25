@@ -11,10 +11,11 @@ export const useSettings = create<Store>((set, get) => ({
   mode: 'local',
   api_key: undefined,
   local_model: 'llama3',
+  language: 'en',
   initialized: false,
   init: async () => {
     if (get().initialized) return
-    try { const data = await getSettings(); set({ ...data, initialized: true }) } catch {}
+  try { const data = await getSettings(); set({ ...data, initialized: true }) } catch {}
   },
   save: async (p) => {
     const data = await updateSettings(p)

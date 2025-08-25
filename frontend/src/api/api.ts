@@ -20,12 +20,12 @@ export async function fetchStock(symbol: string, market: string, days = 60) {
 
 export interface AnalysisResponse { symbol: string; market: string; summary: StockSummary; analysis: string }
 
-export async function analyze(symbol: string, market: string, question?: string) {
-  const { data } = await client.post<AnalysisResponse>('/analysis', { symbol, market, question })
+export async function analyze(symbol: string, market: string, question?: string, language?: string) {
+  const { data } = await client.post<AnalysisResponse>('/analysis', { symbol, market, question, language })
   return data
 }
 
-export interface SettingsState { mode: 'local' | 'cloud'; api_key?: string; local_model?: string }
+export interface SettingsState { mode: 'local' | 'cloud'; api_key?: string; local_model?: string; language?: 'en' | 'zh' }
 
 export async function getSettings() {
   const { data } = await client.get<SettingsState>('/settings')
