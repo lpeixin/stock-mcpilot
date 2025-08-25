@@ -4,9 +4,8 @@ import { StockRow } from '../api/api'
 import { useSettings } from '../store/useSettings'
 import { setLang, t } from '../i18n'
 
-interface Props { rows: StockRow[]; symbol: string }
-
-const CloseLineChart: React.FC<Props> = ({ rows, symbol }) => {
+interface Props { rows: StockRow[]; symbol: string; market: string }
+const CloseLineChart: React.FC<Props> = ({ rows, symbol, market }) => {
   const { language } = useSettings(); setLang(language as any)
   const data = useMemo(()=> rows.map(r => ({
     date: r.date.slice(0,10),
@@ -23,9 +22,18 @@ const CloseLineChart: React.FC<Props> = ({ rows, symbol }) => {
     const pad = (max - min) * 0.05
     return [min - pad, max + pad]
   }, [data])
+  // Market -> currency abbreviation mapping
+  const currency = useMemo(() => {
+    switch ((market || '').toUpperCase()) {
+      case 'US': return 'USD'
+      case 'HK': return 'HKD'
+      case 'CN': return 'CNY'
+      default: return ''
+    }
+  }, [market])
   return (
     <div className="h-64 border rounded bg-white p-2 shadow-sm flex flex-col overflow-hidden">
-      <h3 className="text-xs text-gray-500 mb-1 shrink-0">{t('chart.close') || 'Close Price'} - {symbol}</h3>
+      <h3 className="text-xs text-gray-500 mb-1 shrink-0">{t('chart.close') || 'Close Price'}{currency ? ` (${currency})` : ''} - {symbol}</h3>
       <div className="flex-1 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 4, right: 12, left: 4, bottom: 4 }}>

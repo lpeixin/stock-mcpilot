@@ -35,11 +35,14 @@ const StockResult: React.FC<Props> = ({ data, analysis, loading }) => {
   const ddTone = s.max_drawdown_pct <= -10 ? 'neg' : 'neutral'
   const volTone = s.volatility_pct > 5 ? 'neg' : 'neutral'
 
+  const displayName = language === 'zh'
+    ? (data.company_name_zh || data.company_name_en || data.symbol)
+    : (data.company_name_en || data.company_name_zh || data.symbol)
   return (
     <div className="space-y-4 mt-4">
       <div className="space-y-3">
         <div className="flex items-center gap-3">
-          <h2 className="font-medium text-base">{t('summary.title')}</h2>
+          <h2 className="font-medium text-base">{t('summary.title')} · {displayName}</h2>
           <span className="text-xs text-gray-400">{t('summary.range')}: {data.start} ~ {data.end}</span>
         </div>
         <div className="grid gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
