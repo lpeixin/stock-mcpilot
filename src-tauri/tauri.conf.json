@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Stock MCPilot",
+  "version": "0.1.0",
+  "identifier": "com.example.stockmcpilot",
+  "build": {
+    "beforeBuildCommand": "cd ../frontend && npm install && npm run build",
+    "beforeDevCommand": "cd ../frontend && npm run dev",
+  "devUrl": "http://localhost:5173",
+  "frontendDist": "../frontend/dist"
+  },
+  "app": {
+    "windows": [
+      { "title": "Stock MCPilot", "width": 1200, "height": 800 }
+    ]
+  }
+}

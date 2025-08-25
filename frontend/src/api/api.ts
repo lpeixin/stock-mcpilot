@@ -1,0 +1,37 @@
+import axios from 'axios'
+
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000'
+const client = axios.create({ baseURL: API_BASE, timeout: 15000 })
+
+client.interceptors.response.use(r=>r, e=>{
+  // 简单错误包装
+  const msg = e?.response?.data?.detail || e.message || '请求失败'
+  return Promise.reject(new Error(msg))
+})
+
+export interface StockRow { date: string; open: number; high: number; low: number; close: number; volume: number }
+export interface StockSummary { count: number; mean_close: number; vol_mean: number; return_pct: number; max_drawdown_pct: number; volatility_pct: number }
+export interface StockDailyResponse { symbol: string; market: string; start: string; end: string; rows: StockRow[]; summary: StockSummary }
+
+export async function fetchStock(symbol: string, market: string, days = 60) {
+  const { data } = await client.get<StockDailyResponse>(`/stocks/${symbol}`, { params: { market, days } })
+  return data
+}
+
+export interface AnalysisResponse { symbol: string; market: string; summary: StockSummary; analysis: string }
+
+export async function analyze(symbol: string, market: string, question?: string) {
+  const { data } = await client.post<AnalysisResponse>('/analysis', { symbol, market, question })
+  return data
+}
+
+export interface SettingsState { mode: 'local' | 'cloud'; api_key?: string; local_model?: string }
+
+export async function getSettings() {
+  const { data } = await client.get<SettingsState>('/settings')
+  return data
+}
+export async function updateSettings(payload: Partial<SettingsState>) {
+  const { data } = await client.post<SettingsState>('/settings', payload)
+  return data
+}

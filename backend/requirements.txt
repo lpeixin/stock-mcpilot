@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+pydantic
+sqlalchemy
+pandas
+yfinance
+akshare
+langchain
+litellm
+python-dotenv
+typing-extensions
+httpx
