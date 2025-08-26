@@ -37,6 +37,7 @@ const dict: Record<Lang, Record<string, string>> = {
   , 'footer.disclaimer': 'Beta Scaffold - Not investment advice'
   , 'chart.close': 'Close Price'
   , 'label.date': 'Date'
+  , 'search.empty': 'Ticker is required'
   },
   zh: {
     'search.placeholder': '股票代码',
@@ -73,6 +74,7 @@ const dict: Record<Lang, Record<string, string>> = {
   , 'footer.disclaimer': 'Beta Scaffold - 不构成投资建议'
   , 'chart.close': '收盘价走势'
   , 'label.date': '日期'
+  , 'search.empty': '请输入股票代码'
   }
 }
 
