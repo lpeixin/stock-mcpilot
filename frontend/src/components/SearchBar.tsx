@@ -2,11 +2,11 @@ import React, { useState } from 'react'
 import { useSettings } from '../store/useSettings'
 import { setLang, t } from '../i18n'
 
-interface Props { onSearch: (symbol: string, market: string) => void }
+import { useHome } from '../store/useHome'
+interface Props { onSearch: () => void }
 
 const SearchBar: React.FC<Props> = ({ onSearch }) => {
-  const [symbol, setSymbol] = useState('AAPL')
-  const [market, setMarket] = useState<'US'|'HK'|'CN'>('US')
+  const { symbol, market, setSymbol, setMarket } = useHome()
   const { language } = useSettings()
   setLang(language as any)
   const [msg, setMsg] = useState('')
@@ -22,7 +22,7 @@ const SearchBar: React.FC<Props> = ({ onSearch }) => {
         const s = symbol.trim()
         if (!s){ setMsg(t('search.empty')); return }
         setMsg('')
-        onSearch(s, market)
+        onSearch()
       }} className="bg-blue-600 text-white rounded px-4 py-2 text-sm">{t('search.action')}</button>
       {msg && <span className="text-xs text-rose-500 mt-1 md:mt-0">{msg}</span>}
     </div>
