@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, Query
 from ..schemas.stocks import StockDailyResponse, StockAnalysisSummary
 from functools import lru_cache
 import yfinance as yf
-from ..storage.cache import get_price_data
+from ..storage.cache import get_price_data, maybe_update_intraday
 
 router = APIRouter()
 
@@ -37,6 +37,24 @@ def get_stock_daily(symbol: str, market: str = Query("US", regex="^(US|HK|CN)$")
         df = get_price_data(symbol=symbol, market=market, start=start, end=end)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    # Intraday update: if market open, attempt to update today's row with live price
+    try:
+        updated = maybe_update_intraday(symbol, market)
+        if updated:
+            # incorporate into df
+            import pandas as pd
+            idx = pd.to_datetime([updated['date']])
+            if df.empty:
+                df = pd.DataFrame([updated]).set_index(idx)
+            else:
+                # replace or append
+                if pd.to_datetime(updated['date']) in df.index:
+                    df.loc[pd.to_datetime(updated['date']), ['open','high','low','close','volume']] = [updated.get('open'), updated.get('high'), updated.get('low'), updated.get('close'), updated.get('volume')]
+                else:
+                    df.loc[pd.to_datetime(updated['date']), ['open','high','low','close','volume']] = [updated.get('open'), updated.get('high'), updated.get('low'), updated.get('close'), updated.get('volume')]
+            df = df.sort_index()
+    except Exception:
+        pass  # fail silently for live updates
     if df.empty:
         raise HTTPException(status_code=404, detail="No data")
     df = df.tail(days)
