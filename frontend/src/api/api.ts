@@ -35,3 +35,12 @@ export async function updateSettings(payload: Partial<SettingsState>) {
   const { data } = await client.post<SettingsState>('/settings', payload)
   return data
 }
+
+export interface EarningsEvent { date: string; eps_actual?: number | null; eps_estimate?: number | null; eps_surprise?: number | null; surprise_percent?: number | null }
+export interface AnalystEstimates { next_quarter_eps_avg?: number | null; next_quarter_analysts?: number | null; next_year_eps_avg?: number | null; revenue_next_quarter_avg?: number | null; updated_at?: string | null }
+export interface EarningsResponse { symbol: string; market: string; next_earnings_date?: string | null; events: EarningsEvent[]; analyst?: AnalystEstimates | null }
+
+export async function fetchEarnings(symbol: string, market: string){
+  const { data } = await client.get<EarningsResponse>(`/stocks/${symbol}/earnings`, { params: { market } })
+  return data
+}

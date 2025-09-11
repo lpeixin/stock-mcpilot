@@ -36,3 +36,27 @@ class StockDailyResponse(BaseModel):
     summary: StockAnalysisSummary
     company_name_en: str | None = None
     company_name_zh: str | None = None
+
+
+class EarningsEvent(BaseModel):
+    date: str
+    eps_actual: float | None = None
+    eps_estimate: float | None = None
+    eps_surprise: float | None = None
+    surprise_percent: float | None = None
+
+
+class AnalystEstimates(BaseModel):
+    next_quarter_eps_avg: float | None = None
+    next_quarter_analysts: int | None = None
+    next_year_eps_avg: float | None = None
+    revenue_next_quarter_avg: float | None = None
+    updated_at: str | None = None
+
+
+class EarningsResponse(BaseModel):
+    symbol: str
+    market: str
+    next_earnings_date: str | None = None
+    events: list[EarningsEvent] = []
+    analyst: AnalystEstimates | None = None

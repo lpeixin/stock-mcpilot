@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { analyze, fetchStock, StockDailyResponse, AnalysisResponse } from '../api/api'
+import { analyze, fetchStock, StockDailyResponse, AnalysisResponse, fetchEarnings, EarningsResponse } from '../api/api'
 
 interface HomeState {
   symbol: string
@@ -7,6 +7,7 @@ interface HomeState {
   question: string
   data?: StockDailyResponse
   analysis?: AnalysisResponse
+  earnings?: EarningsResponse
   loading: boolean
   setSymbol: (s: string) => void
   setMarket: (m: 'US' | 'HK' | 'CN') => void
@@ -22,6 +23,7 @@ export const useHome = create<HomeState>((set, get) => ({
   question: '',
   data: undefined,
   analysis: undefined,
+  earnings: undefined,
   loading: false,
   setSymbol: (s) => set({ symbol: s }),
   setMarket: (m) => set({ market: m }),
@@ -32,8 +34,11 @@ export const useHome = create<HomeState>((set, get) => ({
     if (!symbol.trim()) return
     set({ loading: true, analysis: undefined })
     try {
-      const d = await fetchStock(symbol.trim().toUpperCase(), market)
-      set({ data: d })
+      const [d, e] = await Promise.all([
+        fetchStock(symbol.trim().toUpperCase(), market),
+        fetchEarnings(symbol.trim().toUpperCase(), market).catch(()=>undefined)
+      ])
+      set({ data: d, earnings: e })
     } catch (e) {
       // swallow; UI can decide to show message later
     } finally { set({ loading: false }) }

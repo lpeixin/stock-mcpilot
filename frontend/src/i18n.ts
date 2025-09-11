@@ -39,6 +39,11 @@ const dict: Record<Lang, Record<string, string>> = {
   , 'label.date': 'Date'
   , 'search.empty': 'Ticker is required'
   , 'chart.visible_range': 'Visible Range'
+  , 'earnings.title': 'Earnings'
+  , 'earnings.next': 'Next Earnings'
+  , 'earnings.empty': 'No earnings available'
+  , 'expand': 'Expand'
+  , 'collapse': 'Collapse'
   },
   zh: {
     'search.placeholder': '股票代码',
@@ -77,6 +82,11 @@ const dict: Record<Lang, Record<string, string>> = {
   , 'label.date': '日期'
   , 'search.empty': '请输入股票代码'
   , 'chart.visible_range': '可见区间'
+  , 'earnings.title': '财报概览'
+  , 'earnings.next': '下次财报日'
+  , 'earnings.empty': '暂无财报数据'
+  , 'expand': '展开'
+  , 'collapse': '收起'
   }
 }
 
