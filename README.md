@@ -14,7 +14,19 @@ Stock MCPilot is a cross‑platform desktop application (macOS/Windows via Tauri
 - Data sources: yfinance (US/HK/crypto) + AKShare (CN markets, to extend)
 - Local or cloud LLM selection (Ollama local inference; cloud via future LiteLLM routing)
 - Basic statistical summary (return, volatility, max drawdown, average volume)
-- Simple line chart (closing prices)
+- Close price line chart with:
+  - Adaptive date X‑axis tick density
+  - Brush for adjustable visible range (draggable window)
+  - Visible range label
+- Earnings panel (right side):
+  - Last ~2 years EPS Estimate / Actual / Surprise (+ Surprise%)
+  - Next earnings date (if available)
+  - Graceful fallback per market (US best; HK/CN best‑effort)
+  - Compact, scrollable card with expand/collapse
+- Intraday behavior for “today”:
+  - If trading day and market open → show current price (auto‑refreshed on query)
+  - If market closed → show official close (overwrites prior intraday cache)
+  - SQLite upsert keeps latest for the day
 - Settings page (mode, API key, local model)
 - Caching daily prices into SQLite
 - Tauri minimal configuration
@@ -42,6 +54,7 @@ Planned (Roadmap excerpt):
 StockMCPilot
 ├── frontend/            # React + Vite + TS + Tailwind + Zustand
 │   ├── src/components/  # UI components
+│   │   └── EarningsCard.tsx  # Earnings panel (EPS, next earnings date)
 │   ├── src/pages/       # Pages (Home / Settings)
 │   ├── src/store/       # Global state (Zustand)
 │   ├── src/api/         # API client wrappers
@@ -49,6 +62,7 @@ StockMCPilot
 │   └── src/hooks/       # Custom hooks
 ├── backend/             # FastAPI service & LLM/data integration
 │   ├── routers/         # API routes (stocks / analysis / settings)
+│   │   └── stocks.py     # + /stocks/{symbol}/earnings endpoint
 │   ├── schemas/         # Pydantic models
 │   ├── providers/       # LLM providers (local / cloud)
 │   ├── agents/          # LangChain agents (stubs)
@@ -144,14 +158,25 @@ cargo tauri build
 ## 1.7 Usage Flow
 1. Open frontend (Vite) or Tauri window.
 2. Enter symbol (e.g., AAPL) + select market.
-3. Query fetches historical data (cached if repeated).
-4. Basic stats computed server-side -> returned summary.
-5. (Optional) Enter a question -> LLM analysis (local Ollama or future cloud).
+3. Query fetches historical data (cached if repeated). If today is a trading day:
+  - During market hours, the latest intraday price is saved/updated for today.
+  - After close, the official close overwrites any prior intraday cache.
+4. Left: Close price line chart with adjustable visible range (brush) and adaptive date ticks.
+5. Right: Earnings panel shows recent EPS Estimate/Actual/Surprise and the next earnings date (if available).
+6. (Optional) Enter a question -> LLM analysis (local Ollama or future cloud).
 
 ## 1.8 Data & Caching Notes
 - yfinance data normalized to lowercase columns (open/high/low/close/volume)
 - SQLite primary key (symbol, market, date)
 - Download attempts fill gaps; simplistic gap heuristic now (future improvement: trading calendar)
+- Intraday update flow:
+  - During session: upsert today's row using yfinance fast_info/1m history (open/high/low/close/volume)
+  - Post‑close: fetch daily history and ensure today's close exists/overwrites prior intraday value
+  - End date fetch includes +1 day to account for yfinance's right‑open interval
+
+### 1.8.1 REST Endpoints (selection)
+- GET `/stocks/{symbol}`: daily rows + summary
+- GET `/stocks/{symbol}/earnings`: earnings dates with EPS and next earnings date
 
 ## 1.9 Contributing (Short)
 1. Fork & branch (`feat/xyz`)
@@ -188,7 +213,19 @@ Stock MCPilot 是一个跨平台 (macOS/Windows) 桌面应用，通过本地或�
 - 数据源：yfinance（美股/港股/加密）+ AKShare（A 股等，待扩展）
 - 本地 / 云端 LLM 模式切换（本地 Ollama；云端后续通过 LiteLLM）
 - 基础统计摘要（收益、波动率、最大回撤、均量等）
-- 收盘价折线图
+- 收盘价趋势图（改进）：
+  - 横轴日期自适配刻度密度
+  - 支持拖拽选择可见区间（Brush）
+  - 顶部显示当前可见区间
+- 财报信息卡片（右侧）：
+  - 近两年 EPS 估值/实际/意外（含 Surprise%）
+  - 下一次财报日期（若可得）
+  - 不同市场覆盖度不同（美股较完整），缺失即不显示具体条目
+  - 卡片高度受控、可滚动，支持“展开/收起”
+- 当日展示策略：
+  - 若为交易日且开市中：展示并缓存“当前价格”，多次查询自动刷新
+  - 若已收盘：展示官方收盘价，并覆盖先前的盘中缓存
+  - SQLite upsert 保存当日最新数据
 - 设置页（模式 / API Key / 本地模型）
 - 日线数据 SQLite 缓存
 - Tauri 最小配置
@@ -279,13 +316,25 @@ VITE_API_BASE=http://127.0.0.1:8000
 ## 2.7 使用流程
 1. 打开前端或桌面窗口
 2. 输入代码与市场并查询
-3. 返回并缓存历史数据 + 统计摘要
-4. 可输入问题调用 LLM 分析（本地或未来云端）
+3. 若当天为交易日：
+  - 开市中：缓存并展示最新盘中价格；
+  - 收盘后：用当日收盘价更新/覆盖；
+4. 左侧：收盘价趋势图，支持区间拖动与日期刻度自适配。
+5. 右侧：财报卡片显示近两年 EPS（估值/实际/意外）与下次财报日（如有）。
+6. 可输入问题调用 LLM 分析（本地或未来云端）。
 
 ## 2.8 缓存说明
 - yfinance 数据列标准化为小写
 - SQLite 主键 (symbol, market, date)
 - 简单缺口填充策略（未来可结合交易日历精准化）
+- 盘中与收盘更新：
+  - 开市：基于 yfinance fast_info/1m 刷新当日 open/high/low/close/volume；
+  - 收盘：以日线数据补全/覆盖当日收盘；
+  - 拉取时 end 向后 +1 天以适配 yfinance 右开区间；
+
+### 2.8.1 REST 接口（节选）
+- GET `/stocks/{symbol}`：返回日线与统计摘要
+- GET `/stocks/{symbol}/earnings`：返回财报日期、EPS 相关数据与下一次财报日
 
 ## 2.9 贡献方式
 1. Fork & 建立分支 (feat/xxx)
