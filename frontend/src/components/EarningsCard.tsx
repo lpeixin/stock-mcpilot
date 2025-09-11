@@ -13,7 +13,7 @@ const EarningsCard: React.FC<Props> = ({ data }) => {
   const [expanded, setExpanded] = React.useState(false)
   const visible = expanded ? events : events.slice(-6) // 默认仅显示近 6 条，避免过长
   return (
-    <div className="mt-4 bg-white border rounded shadow-sm flex flex-col max-h-[400px]">
+    <div className="bg-white border rounded shadow-sm flex flex-col max-h-[400px]">
       <div className="px-4 py-2 border-b flex items-center justify-between gap-2">
         <div className="font-medium text-gray-800 truncate">{t('earnings.title') || 'Earnings'}</div>
         <div className="flex items-center gap-3">
