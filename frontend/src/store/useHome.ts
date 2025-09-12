@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { analyze, fetchStock, StockDailyResponse, AnalysisResponse, fetchEarnings, EarningsResponse } from '../api/api'
+import { analyze, fetchStock, StockDailyResponse, AnalysisResponse, fetchEarnings, EarningsResponse, fetchNews, NewsResponse } from '../api/api'
 
 interface HomeState {
   symbol: string
@@ -8,6 +8,7 @@ interface HomeState {
   data?: StockDailyResponse
   analysis?: AnalysisResponse
   earnings?: EarningsResponse
+  news?: NewsResponse
   loading: boolean
   setSymbol: (s: string) => void
   setMarket: (m: 'US' | 'HK' | 'CN') => void
@@ -24,6 +25,7 @@ export const useHome = create<HomeState>((set, get) => ({
   data: undefined,
   analysis: undefined,
   earnings: undefined,
+  news: undefined,
   loading: false,
   setSymbol: (s) => set({ symbol: s }),
   setMarket: (m) => set({ market: m }),
@@ -34,11 +36,12 @@ export const useHome = create<HomeState>((set, get) => ({
     if (!symbol.trim()) return
     set({ loading: true, analysis: undefined })
     try {
-      const [d, e] = await Promise.all([
+      const [d, e, n] = await Promise.all([
         fetchStock(symbol.trim().toUpperCase(), market),
-        fetchEarnings(symbol.trim().toUpperCase(), market).catch(()=>undefined)
+        fetchEarnings(symbol.trim().toUpperCase(), market).catch(()=>undefined),
+        fetchNews(symbol.trim().toUpperCase(), market).catch(()=>undefined)
       ])
-      set({ data: d, earnings: e })
+      set({ data: d, earnings: e, news: n })
     } catch (e) {
       // swallow; UI can decide to show message later
     } finally { set({ loading: false }) }

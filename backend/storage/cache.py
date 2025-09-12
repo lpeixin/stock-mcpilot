@@ -1,6 +1,6 @@
 from datetime import date, datetime, time, timedelta
 import pandas as pd
-from .db import load_prices, upsert_prices
+from .db import load_prices, upsert_prices, add_news_items, load_news
 
 def _market_symbol(symbol: str, market: str) -> str:
     if market == "HK" and not symbol.endswith(".HK"):
@@ -213,7 +213,7 @@ def maybe_update_intraday(symbol: str, market: str):
             **live
         }
         upsert_prices([new_row])
-        return new_row
+    return new_row
 
     # 收盘后还没有当日行 -> 尝试用日线数据补
     if status == 'closed' and not existing_rows:
@@ -241,4 +241,78 @@ def maybe_update_intraday(symbol: str, market: str):
         except Exception:
             return None
     return None
+
+
+# ---------------- News (recent, cached up to 10) -----------------
+def fetch_news(symbol: str, market: str) -> list[dict]:
+    """Best-effort recent news list with minimal fields. Prefer yfinance; fallback akshare if available.
+    Returns list of dicts: { 'published_at': datetime, 'text': str }
+    """
+    items: list[dict] = []
+    try:
+        yf_symbol = _market_symbol(symbol, market)
+        t = yf.Ticker(yf_symbol)
+        # yfinance 'news' field (list of dicts) sometimes available (EN headlines)
+        raw = getattr(t, 'news', []) or []
+        for n in raw[:20]:
+            ts = n.get('providerPublishTime') or n.get('published') or n.get('time')
+            import datetime as _dt
+            dt = None
+            try:
+                if isinstance(ts, (int, float)):
+                    dt = _dt.datetime.utcfromtimestamp(int(ts))
+                else:
+                    from pandas import to_datetime
+                    dt = to_datetime(ts, utc=True).to_pydatetime()
+            except Exception:
+                continue
+            title = n.get('title') or n.get('content') or ''
+            if title:
+                items.append({'published_at': dt, 'text': str(title).strip()})
+        if items:
+            return items[:10]
+    except Exception:
+        pass
+    # Yahoo Finance RSS fallback (works for many tickers/regions)
+    try:
+        import httpx
+        from email.utils import parsedate_to_datetime
+        yf_symbol = _market_symbol(symbol, market)
+        region = {'US': 'US', 'HK': 'HK', 'CN': 'CN'}.get(market.upper(), 'US')
+        url = f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={yf_symbol}&region={region}&lang=en-US"
+        with httpx.Client(timeout=6.0, headers={"User-Agent": "stock-mcpilot/1.0"}) as client:
+            resp = client.get(url)
+            if resp.status_code == 200 and resp.text:
+                import xml.etree.ElementTree as ET
+                root = ET.fromstring(resp.text)
+                # Typical path: rss/channel/item
+                channel = root.find('channel')
+                if channel is not None:
+                    for item in channel.findall('item'):
+                        title = (item.findtext('title') or '').strip()
+                        if not title:
+                            continue
+                        pub = item.findtext('pubDate')
+                        try:
+                            dt = parsedate_to_datetime(pub) if pub else None
+                        except Exception:
+                            dt = None
+                        if dt is None:
+                            from datetime import datetime as _dt
+                            dt = _dt.utcnow()
+                        items.append({'published_at': dt, 'text': title})
+                if items:
+                    # de-dup by text while preserving order
+                    seen = set()
+                    dedup = []
+                    for it in items:
+                        if it['text'] in seen:
+                            continue
+                        seen.add(it['text'])
+                        dedup.append(it)
+                    return dedup[:10]
+    except Exception:
+        pass
+    # Optional: akshare fallback (TBD for specific markets)
+    return items[:10]
 
