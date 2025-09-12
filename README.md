@@ -23,6 +23,11 @@ Stock MCPilot is a cross‑platform desktop application (macOS/Windows via Tauri
   - Next earnings date (if available)
   - Graceful fallback per market (US best; HK/CN best‑effort)
   - Compact, scrollable card with expand/collapse
+- Recent News panel (below chart):
+  - Up to 10 recent headlines (pure text, concise)
+  - Scrollable inside fixed area; does not expand page layout
+  - Local cache with FIFO eviction (keep latest 10 per symbol/market)
+  - Sources: yfinance Ticker.news; fallback to Yahoo Finance RSS
 - Intraday behavior for “today”:
   - If trading day and market open → show current price (auto‑refreshed on query)
   - If market closed → show official close (overwrites prior intraday cache)
@@ -55,6 +60,7 @@ StockMCPilot
 ├── frontend/            # React + Vite + TS + Tailwind + Zustand
 │   ├── src/components/  # UI components
 │   │   └── EarningsCard.tsx  # Earnings panel (EPS, next earnings date)
+│   │   └── NewsList.tsx      # Recent news panel (scrollable, max 10)
 │   ├── src/pages/       # Pages (Home / Settings)
 │   ├── src/store/       # Global state (Zustand)
 │   ├── src/api/         # API client wrappers
@@ -67,6 +73,7 @@ StockMCPilot
 │   ├── providers/       # LLM providers (local / cloud)
 │   ├── agents/          # LangChain agents (stubs)
 │   ├── storage/         # SQLite logic & caching
+│   │   └── db.py         # + news table (cached headlines)
 │   └── main.py          # App entry
 ├── src-tauri/           # Tauri (Rust) config
 └── README.md
@@ -161,7 +168,7 @@ cargo tauri build
 3. Query fetches historical data (cached if repeated). If today is a trading day:
   - During market hours, the latest intraday price is saved/updated for today.
   - After close, the official close overwrites any prior intraday cache.
-4. Left: Close price line chart with adjustable visible range (brush) and adaptive date ticks.
+4. Left: Close price line chart (adjustable range). Below the chart: Recent News (up to 10, scrollable).
 5. Right: Earnings panel shows recent EPS Estimate/Actual/Surprise and the next earnings date (if available).
 6. (Optional) Enter a question -> LLM analysis (local Ollama or future cloud).
 
@@ -177,6 +184,12 @@ cargo tauri build
 ### 1.8.1 REST Endpoints (selection)
 - GET `/stocks/{symbol}`: daily rows + summary
 - GET `/stocks/{symbol}/earnings`: earnings dates with EPS and next earnings date
+- GET `/stocks/{symbol}/news`: up to 10 recent text headlines (cached, FIFO)
+
+### 1.8.2 News Caching & Sources
+- Cache: SQLite `news` table, primary key (symbol, market, published_at)
+- Each query writes fresh items then trims to the latest 10
+- Sources: yfinance `Ticker.news` first; fallback to Yahoo Finance RSS feed
 
 ## 1.9 Contributing (Short)
 1. Fork & branch (`feat/xyz`)
@@ -222,6 +235,11 @@ Stock MCPilot 是一个跨平台 (macOS/Windows) 桌面应用，通过本地或�
   - 下一次财报日期（若可得）
   - 不同市场覆盖度不同（美股较完整），缺失即不显示具体条目
   - 卡片高度受控、可滚动，支持“展开/收起”
+- 近期资讯（图表下方）：
+  - 最多 10 条纯文本标题，简短展示
+  - 固定高度，内部滚动；不撑大页面
+  - 本地缓存（每只股票最新 10 条，FIFO 逐出最早）
+  - 数据来源：优先 yfinance Ticker.news，兜底 Yahoo Finance RSS
 - 当日展示策略：
   - 若为交易日且开市中：展示并缓存“当前价格”，多次查询自动刷新
   - 若已收盘：展示官方收盘价，并覆盖先前的盘中缓存
@@ -319,7 +337,7 @@ VITE_API_BASE=http://127.0.0.1:8000
 3. 若当天为交易日：
   - 开市中：缓存并展示最新盘中价格；
   - 收盘后：用当日收盘价更新/覆盖；
-4. 左侧：收盘价趋势图，支持区间拖动与日期刻度自适配。
+4. 左侧：收盘价趋势图（可调整区间）下方显示“近期资讯”（最多 10 条，可滚动）。
 5. 右侧：财报卡片显示近两年 EPS（估值/实际/意外）与下次财报日（如有）。
 6. 可输入问题调用 LLM 分析（本地或未来云端）。
 
@@ -335,6 +353,12 @@ VITE_API_BASE=http://127.0.0.1:8000
 ### 2.8.1 REST 接口（节选）
 - GET `/stocks/{symbol}`：返回日线与统计摘要
 - GET `/stocks/{symbol}/earnings`：返回财报日期、EPS 相关数据与下一次财报日
+- GET `/stocks/{symbol}/news`：返回最多 10 条新闻文本标题（本地缓存，FIFO）
+
+### 2.8.2 资讯缓存与数据源
+- 缓存：SQLite `news` 表，主键 (symbol, market, published_at)
+- 每次查询写入新项并仅保留最新 10 条
+- 数据源：优先 yfinance `Ticker.news`；兜底 Yahoo Finance RSS 源
 
 ## 2.9 贡献方式
 1. Fork & 建立分支 (feat/xxx)
