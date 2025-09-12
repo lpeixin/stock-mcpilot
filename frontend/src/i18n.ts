@@ -44,6 +44,9 @@ const dict: Record<Lang, Record<string, string>> = {
   , 'earnings.empty': 'No earnings available'
   , 'expand': 'Expand'
   , 'collapse': 'Collapse'
+  , 'news.title': 'Recent News'
+  , 'news.count': 'Count'
+  , 'news.empty': 'No recent news available'
   },
   zh: {
     'search.placeholder': '股票代码',
@@ -87,6 +90,9 @@ const dict: Record<Lang, Record<string, string>> = {
   , 'earnings.empty': '暂无财报数据'
   , 'expand': '展开'
   , 'collapse': '收起'
+  , 'news.title': '近期资讯'
+  , 'news.count': '条数'
+  , 'news.empty': '暂无相关新闻'
   }
 }
 

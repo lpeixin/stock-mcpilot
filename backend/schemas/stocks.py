@@ -60,3 +60,14 @@ class EarningsResponse(BaseModel):
     next_earnings_date: str | None = None
     events: list[EarningsEvent] = []
     analyst: AnalystEstimates | None = None
+
+
+class NewsItem(BaseModel):
+    published_at: str
+    text: str
+
+
+class NewsResponse(BaseModel):
+    symbol: str
+    market: str
+    items: list[NewsItem] = []

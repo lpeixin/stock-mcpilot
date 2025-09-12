@@ -1,9 +1,10 @@
 from datetime import date, timedelta
 from fastapi import APIRouter, HTTPException, Query
-from ..schemas.stocks import StockDailyResponse, StockAnalysisSummary, EarningsResponse, EarningsEvent, AnalystEstimates
+from ..schemas.stocks import StockDailyResponse, StockAnalysisSummary, EarningsResponse, EarningsEvent, AnalystEstimates, NewsResponse, NewsItem
 from functools import lru_cache
 import yfinance as yf
-from ..storage.cache import get_price_data, maybe_update_intraday
+from ..storage.cache import get_price_data, maybe_update_intraday, fetch_news
+from ..storage.db import load_news, add_news_items
 
 router = APIRouter()
 
@@ -199,3 +200,21 @@ def get_stock_earnings(symbol: str, market: str = Query("US", regex="^(US|HK|CN)
     except Exception:
         analyst = None
     return EarningsResponse(symbol=symbol, market=market, next_earnings_date=next_earnings_date, events=events, analyst=analyst)
+
+
+@router.get("/{symbol}/news", response_model=NewsResponse)
+def get_stock_news(symbol: str, market: str = Query("US", regex="^(US|HK|CN)$")):
+    symbol = symbol.upper().strip()
+    # try cache first
+    cached = load_news(symbol, market)
+    items: list[NewsItem] = [NewsItem(published_at=str(r['published_at']), text=r['text']) for r in cached]
+    # fetch fresh best-effort, then upsert and return top 10
+    fresh = fetch_news(symbol, market)
+    if fresh:
+        try:
+            add_news_items(symbol, market, fresh)
+            cached = load_news(symbol, market)
+            items = [NewsItem(published_at=str(r['published_at']), text=r['text']) for r in cached]
+        except Exception:
+            pass
+    return NewsResponse(symbol=symbol, market=market, items=items[:10])

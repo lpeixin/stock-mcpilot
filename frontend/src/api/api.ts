@@ -44,3 +44,10 @@ export async function fetchEarnings(symbol: string, market: string){
   const { data } = await client.get<EarningsResponse>(`/stocks/${symbol}/earnings`, { params: { market } })
   return data
 }
+
+export interface NewsItem { published_at: string; text: string }
+export interface NewsResponse { symbol: string; market: string; items: NewsItem[] }
+export async function fetchNews(symbol: string, market: string){
+  const { data } = await client.get<NewsResponse>(`/stocks/${symbol}/news`, { params: { market } })
+  return data
+}
