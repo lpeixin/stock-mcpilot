@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react'
+import React, { useMemo, useState, useCallback, useEffect } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Brush } from 'recharts'
 import { StockRow } from '../api/api'
 import { useSettings } from '../store/useSettings'
@@ -11,17 +11,31 @@ const CloseLineChart: React.FC<Props> = ({ rows, symbol, market }) => {
     date: r.date.slice(0,10),
     close: Number(r.close?.toFixed ? r.close.toFixed(4) : Number(r.close).toFixed(4))
   })), [rows])
-  const [yMin, yMax] = useMemo(()=>{
-    if (!data.length) return [0,1]
-    let min = data[0].close, max = data[0].close
-    for (const d of data){ if (d.close < min) min = d.close; if (d.close > max) max = d.close }
-    if (min === max){
-      const pad = Math.abs(min || 1) * 0.05 || 0.5
-      return [min - pad, max + pad]
-    }
-    const pad = (max - min) * 0.05
-    return [min - pad, max + pad]
-  }, [data])
+  // Selected range indices (controlled by Brush)
+  const [range, setRange] = useState<{ startIndex: number; endIndex: number }>({
+    startIndex: 0,
+    endIndex: Math.max(0, data.length - 1)
+  })
+
+  // Keep range valid when data length changes (e.g., new fetch)
+  useEffect(() => {
+    if (!data.length) return
+    setRange(prev => {
+      const end = data.length - 1
+      let s = typeof prev.startIndex === 'number' ? prev.startIndex : 0
+      let e = typeof prev.endIndex === 'number' ? prev.endIndex : end
+      if (e > end) e = end
+      if (s < 0) s = 0
+      if (s >= e) {
+        // default to last window if invalid; choose up to 120 points
+        const win = Math.min(120, end + 1)
+        s = Math.max(0, (end + 1) - win)
+        e = end
+      }
+      if (s === prev.startIndex && e === prev.endIndex) return prev
+      return { startIndex: s, endIndex: e }
+    })
+  }, [data.length])
   // Market -> currency abbreviation mapping
   const currency = useMemo(() => {
     switch ((market || '').toUpperCase()) {
@@ -32,17 +46,24 @@ const CloseLineChart: React.FC<Props> = ({ rows, symbol, market }) => {
     }
   }, [market])
 
-  const [range, setRange] = useState<{ startIndex: number; endIndex: number }>({
-    startIndex: 0,
-    endIndex: Math.max(0, data.length - 1)
-  })
-
   // Slice data according to current brush selection
   const visibleData = useMemo(() => {
     if (!data.length) return []
     const { startIndex, endIndex } = range
     return data.slice(startIndex, endIndex + 1)
   }, [data, range])
+  // Y domain computed from currently visible window for better scaling
+  const [yMin, yMax] = useMemo(()=>{
+    if (!visibleData.length) return [0,1]
+    let min = visibleData[0].close, max = visibleData[0].close
+    for (const d of visibleData){ if (d.close < min) min = d.close; if (d.close > max) max = d.close }
+    if (min === max){
+      const pad = Math.abs(min || 1) * 0.05 || 0.5
+      return [min - pad, max + pad]
+    }
+    const pad = (max - min) * 0.05
+    return [min - pad, max + pad]
+  }, [visibleData])
 
   const onBrushChange = useCallback((r: any) => {
     if (r && typeof r.startIndex === 'number' && typeof r.endIndex === 'number') {
@@ -93,7 +114,7 @@ const CloseLineChart: React.FC<Props> = ({ rows, symbol, market }) => {
       <div className="flex-1 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
-            data={visibleData}
+            data={data}
             margin={{ top: 4, right: 12, left: 4, bottom: 4 }}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
