@@ -21,7 +21,8 @@ export async function fetchStock(symbol: string, market: string, days = 60) {
 export interface AnalysisResponse { symbol: string; market: string; summary: StockSummary; analysis: string }
 
 export async function analyze(symbol: string, market: string, question?: string, language?: string) {
-  const { data } = await client.post<AnalysisResponse>('/analysis', { symbol, market, question, language })
+  // Allow longer timeout for LLM analysis (local models can be slow)
+  const { data } = await client.post<AnalysisResponse>('/analysis', { symbol, market, question, language }, { timeout: 120000 })
   return data
 }
 
