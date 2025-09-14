@@ -34,6 +34,7 @@ const dict: Record<Lang, Record<string, string>> = {
     'settings.save': 'Save'
   , 'nav.home': 'Home'
   , 'nav.settings': 'Settings'
+  , 'nav.movers': 'Movers'
   , 'footer.disclaimer': 'Beta Scaffold - Not investment advice'
   , 'chart.close': 'Close Price'
   , 'label.date': 'Date'
@@ -47,6 +48,15 @@ const dict: Record<Lang, Record<string, string>> = {
   , 'news.title': 'Recent News'
   , 'news.count': 'Count'
   , 'news.empty': 'No recent news available'
+  , 'movers.gainers': 'Gainers'
+  , 'movers.losers': 'Losers'
+  , 'table.symbol': 'Symbol'
+  , 'table.name': 'Name'
+  , 'table.price': 'Price'
+  , 'table.change': 'Change'
+  , 'table.change_pct': 'Change %'
+  , 'table.volume': 'Volume'
+  , 'table.market_cap': 'Market Cap'
   },
   zh: {
     'search.placeholder': '股票代码',
@@ -80,6 +90,7 @@ const dict: Record<Lang, Record<string, string>> = {
     'settings.save': '保存'
   , 'nav.home': '主页'
   , 'nav.settings': '设置'
+  , 'nav.movers': '涨跌榜'
   , 'footer.disclaimer': 'Beta Scaffold - 不构成投资建议'
   , 'chart.close': '收盘价走势'
   , 'label.date': '日期'
@@ -93,6 +104,15 @@ const dict: Record<Lang, Record<string, string>> = {
   , 'news.title': '近期资讯'
   , 'news.count': '条数'
   , 'news.empty': '暂无相关新闻'
+  , 'movers.gainers': '涨幅榜'
+  , 'movers.losers': '跌幅榜'
+  , 'table.symbol': '代码'
+  , 'table.name': '名称'
+  , 'table.price': '价格'
+  , 'table.change': '涨跌'
+  , 'table.change_pct': '涨跌幅'
+  , 'table.volume': '成交量'
+  , 'table.market_cap': '市值'
   }
 }
 
