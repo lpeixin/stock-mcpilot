@@ -71,3 +71,21 @@ class NewsResponse(BaseModel):
     symbol: str
     market: str
     items: list[NewsItem] = []
+
+
+class MoversItem(BaseModel):
+    symbol: str
+    name: str | None = None
+    price: float | None = None
+    change: float | None = None
+    change_pct: float | None = None
+    volume: int | None = None
+    market_cap: float | None = None
+    currency: str | None = None
+
+
+class MoversResponse(BaseModel):
+    market: str
+    type: str  # 'gainers' | 'losers'
+    count: int
+    items: list[MoversItem] = []

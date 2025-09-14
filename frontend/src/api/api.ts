@@ -51,3 +51,12 @@ export async function fetchNews(symbol: string, market: string){
   const { data } = await client.get<NewsResponse>(`/stocks/${symbol}/news`, { params: { market } })
   return data
 }
+
+export type Market = 'US' | 'HK' | 'CN'
+export type MoversType = 'gainers' | 'losers'
+export interface MoversItem { symbol: string; name?: string | null; price?: number | null; change?: number | null; change_pct?: number | null; volume?: number | null; market_cap?: number | null; currency?: string | null }
+export interface MoversResponse { market: Market; type: MoversType; count: number; items: MoversItem[] }
+export async function fetchMovers(market: Market, type: MoversType = 'gainers', count = 10){
+  const { data } = await client.get<MoversResponse>(`/stocks/movers`, { params: { market, type, count } })
+  return data
+}

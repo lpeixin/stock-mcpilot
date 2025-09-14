@@ -1,6 +1,6 @@
 from datetime import date, timedelta
 from fastapi import APIRouter, HTTPException, Query
-from ..schemas.stocks import StockDailyResponse, StockAnalysisSummary, EarningsResponse, EarningsEvent, AnalystEstimates, NewsResponse, NewsItem
+from ..schemas.stocks import StockDailyResponse, StockAnalysisSummary, EarningsResponse, EarningsEvent, AnalystEstimates, NewsResponse, NewsItem, MoversResponse, MoversItem
 from functools import lru_cache
 import yfinance as yf
 from ..storage.cache import get_price_data, maybe_update_intraday, fetch_news
@@ -218,3 +218,57 @@ def get_stock_news(symbol: str, market: str = Query("US", regex="^(US|HK|CN)$"))
         except Exception:
             pass
     return NewsResponse(symbol=symbol, market=market, items=items[:10])
+
+
+@router.get("/movers", response_model=MoversResponse)
+def get_top_movers(market: str = Query("US", regex="^(US|HK|CN)$"), type: str = Query("gainers", regex="^(gainers|losers)$"), count: int = Query(10, ge=1, le=20)):
+    import httpx
+    # Map to Yahoo Finance screener tags
+    # We'll use region-specific pre-defined screener list IDs when possible
+    screener = None
+    if market == 'US':
+        screener = 'day_gainers' if type == 'gainers' else 'day_losers'
+    elif market == 'HK':
+        screener = 'most_actives_hong_kong'  # fallback; filter by change later
+    elif market == 'CN':
+        screener = 'most_actives_shanghai'  # fallback; filter by change later
+    url = f"https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?count={count}&scrIds={screener}"
+    items: list[MoversItem] = []
+    try:
+        with httpx.Client(timeout=8.0, headers={"User-Agent": "stock-mcpilot/1.0"}) as client:
+            r = client.get(url)
+            if r.status_code == 200:
+                data = r.json()
+                quotes = (((data or {}).get('finance') or {}).get('result') or [{}])[0].get('quotes') or []
+                # For HK/CN fallbacks we accept result then post-filter by change sign if available
+                for q in quotes:
+                    chg = q.get('regularMarketChange')
+                    chgp = q.get('regularMarketChangePercent')
+                    sym = q.get('symbol') or ''
+                    cur = q.get('currency')
+                    # Map market suffixes for HK/CN
+                    if market == 'HK' and not sym.endswith('.HK'):
+                        sym = f"{sym}.HK"
+                    if market == 'CN' and not (sym.endswith('.SS') or sym.endswith('.SZ')):
+                        # leave as-is; symbols may be full already
+                        pass
+                    items.append(MoversItem(
+                        symbol=sym,
+                        name=q.get('shortName') or q.get('longName'),
+                        price=q.get('regularMarketPrice'),
+                        change=chg,
+                        change_pct=chgp,
+                        volume=q.get('regularMarketVolume'),
+                        market_cap=q.get('marketCap'),
+                        currency=cur,
+                    ))
+                # Post-filter by gainers/losers when list is not exactly matching
+                if market in ('HK','CN'):
+                    if type == 'gainers':
+                        items = [it for it in items if (it.change_pct or 0) >= 0]
+                    else:
+                        items = [it for it in items if (it.change_pct or 0) < 0]
+                items = items[:count]
+    except Exception:
+        items = []
+    return MoversResponse(market=market, type=type, count=len(items), items=items)
