@@ -21,6 +21,19 @@ class LocalProvider(BaseProvider):
     def _ollama_endpoint(self) -> str:
         return os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
 
+    def _postprocess(self, text: str) -> str:
+        if not text:
+            return text
+        # Remove common reasoning/thinking tags emitted by some models (e.g., deepseek-r1)
+        import re
+        # Strip <think>...</think> blocks
+        text = re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.IGNORECASE)
+        # Strip XML-ish thinking blocks
+        text = re.sub(r"<thinking>[\s\S]*?</thinking>", "", text, flags=re.IGNORECASE)
+        # Remove leading 'Final Answer:' if present
+        text = re.sub(r"^\s*Final Answer:\s*", "", text, flags=re.IGNORECASE)
+        return text.strip()
+
     def _try_ollama(self, prompt: str) -> Optional[str]:
         model = settings_state.get('local_model') or 'llama3'
         url = self._ollama_endpoint().rstrip('/') + '/api/chat'
@@ -33,19 +46,45 @@ class LocalProvider(BaseProvider):
             "stream": False,
         }
         try:
-            with httpx.Client(timeout=30) as client:
+            # Increase timeout to support slower local models (e.g., deepseek-r1:8b)
+            with httpx.Client(timeout=120) as client:
                 resp = client.post(url, json=payload)
             if resp.status_code != 200:
-                return None
+                return self._try_ollama_generate(prompt, model)
             data = resp.json()
             # Ollama (non-stream) 返回包含 message/content
             message = data.get('message') or {}
             content = message.get('content')
             if content:
-                return content.strip()
+                return self._postprocess(content)
             # 某些版本可能直接有 'content'
             if 'content' in data and isinstance(data['content'], str):
-                return data['content'].strip()
+                return self._postprocess(data['content'])
+            # If chat returns nothing, try generate endpoint
+            return self._try_ollama_generate(prompt, model)
+        except Exception:
+            return self._try_ollama_generate(prompt, model)
+
+    def _try_ollama_generate(self, prompt: str, model: Optional[str] = None) -> Optional[str]:
+        model = model or (settings_state.get('local_model') or 'llama3')
+        url = self._ollama_endpoint().rstrip('/') + '/api/generate'
+        sys = "你是资深量化与基本面结合的股票分析助手, 输出要结构化列出: 1) 概览 2) 短期动量 3) 波动与风险 4) 机会与关注点 5) 免责声明。避免过度乐观措辞。"
+        full_prompt = f"{sys}\n\n用户输入:\n{prompt}"
+        payload = {
+            "model": model,
+            "prompt": full_prompt,
+            "stream": False,
+        }
+        try:
+            with httpx.Client(timeout=120) as client:
+                resp = client.post(url, json=payload)
+            if resp.status_code != 200:
+                return None
+            data = resp.json()
+            # /api/generate returns { response: string, ... }
+            content = data.get('response')
+            if isinstance(content, str) and content.strip():
+                return self._postprocess(content)
             return None
         except Exception:
             return None
