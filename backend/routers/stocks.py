@@ -228,46 +228,81 @@ def get_top_movers(market: str = Query("US", regex="^(US|HK|CN)$"), type: str = 
     screener = None
     if market == 'US':
         screener = 'day_gainers' if type == 'gainers' else 'day_losers'
-    elif market == 'HK':
-        screener = 'most_actives_hong_kong'  # fallback; filter by change later
-    elif market == 'CN':
-        screener = 'most_actives_shanghai'  # fallback; filter by change later
-    url = f"https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?count={count}&scrIds={screener}"
+    else:
+        # Use generic list and post-process for HK/CN
+        screener = 'most_actives'
+    region = {'US':'US','HK':'HK','CN':'CN'}.get(market, 'US')
+    lang = 'en-US'
+    base1 = "https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved"
+    base2 = "https://query2.finance.yahoo.com/v1/finance/screener/predefined/saved"
+    url1 = f"{base1}?lang={lang}&region={region}&count={count}&scrIds={screener}"
+    url2 = f"{base2}?lang={lang}&region={region}&count={count}&scrIds={screener}"
     items: list[MoversItem] = []
     try:
         with httpx.Client(timeout=8.0, headers={"User-Agent": "stock-mcpilot/1.0"}) as client:
-            r = client.get(url)
-            if r.status_code == 200:
-                data = r.json()
-                quotes = (((data or {}).get('finance') or {}).get('result') or [{}])[0].get('quotes') or []
+            # try primary, then secondary host
+            quotes = []
+            for url in (url1, url2):
+                r = client.get(url)
+                if r.status_code == 200:
+                    data = r.json()
+                    quotes = (((data or {}).get('finance') or {}).get('result') or [{}])[0].get('quotes') or []
+                    if quotes:
+                        break
                 # For HK/CN fallbacks we accept result then post-filter by change sign if available
-                for q in quotes:
-                    chg = q.get('regularMarketChange')
-                    chgp = q.get('regularMarketChangePercent')
-                    sym = q.get('symbol') or ''
-                    cur = q.get('currency')
-                    # Map market suffixes for HK/CN
-                    if market == 'HK' and not sym.endswith('.HK'):
-                        sym = f"{sym}.HK"
-                    if market == 'CN' and not (sym.endswith('.SS') or sym.endswith('.SZ')):
-                        # leave as-is; symbols may be full already
-                        pass
-                    items.append(MoversItem(
-                        symbol=sym,
-                        name=q.get('shortName') or q.get('longName'),
-                        price=q.get('regularMarketPrice'),
-                        change=chg,
-                        change_pct=chgp,
-                        volume=q.get('regularMarketVolume'),
-                        market_cap=q.get('marketCap'),
-                        currency=cur,
-                    ))
-                # Post-filter by gainers/losers when list is not exactly matching
-                if market in ('HK','CN'):
-                    if type == 'gainers':
-                        items = [it for it in items if (it.change_pct or 0) >= 0]
-                    else:
-                        items = [it for it in items if (it.change_pct or 0) < 0]
+            for q in quotes:
+                chg = q.get('regularMarketChange')
+                chgp = q.get('regularMarketChangePercent')
+                sym = q.get('symbol') or ''
+                cur = q.get('currency')
+                # Normalize symbols for HK/CN
+                if market == 'HK' and not sym.endswith('.HK'):
+                    sym = f"{sym}.HK"
+                if market == 'CN' and not (sym.endswith('.SS') or sym.endswith('.SZ')):
+                    # leave as-is; symbols may be full already
+                    pass
+                items.append(MoversItem(
+                    symbol=sym,
+                    name=q.get('shortName') or q.get('longName'),
+                    price=q.get('regularMarketPrice'),
+                    change=chg,
+                    change_pct=chgp,
+                    volume=q.get('regularMarketVolume'),
+                    market_cap=q.get('marketCap'),
+                    currency=cur,
+                ))
+            # If US and requested screener failed (empty), fallback to most_actives then sort by change_pct
+            if market == 'US' and not items:
+                for url in (f"{base1}?lang={lang}&region=US&count=50&scrIds=most_actives", f"{base2}?lang={lang}&region=US&count=50&scrIds=most_actives"):
+                    r = client.get(url)
+                    if r.status_code == 200:
+                        data = r.json()
+                        quotes = (((data or {}).get('finance') or {}).get('result') or [{}])[0].get('quotes') or []
+                        if quotes:
+                            tmp = []
+                            for q in quotes:
+                                tmp.append({
+                                    'symbol': q.get('symbol'),
+                                    'name': q.get('shortName') or q.get('longName'),
+                                    'price': q.get('regularMarketPrice'),
+                                    'change': q.get('regularMarketChange'),
+                                    'change_pct': q.get('regularMarketChangePercent'),
+                                    'volume': q.get('regularMarketVolume'),
+                                    'market_cap': q.get('marketCap'),
+                                    'currency': q.get('currency'),
+                                })
+                            if type == 'gainers':
+                                tmp.sort(key=lambda x: (x['change_pct'] or 0), reverse=True)
+                            else:
+                                tmp.sort(key=lambda x: (x['change_pct'] or 0))
+                            for q in tmp[:count]:
+                                items.append(MoversItem(**q))
+                            break
+            # For HK/CN ensure sign filtering when using most_actives
+            if market in ('HK','CN') and items:
+                items = [it for it in items if ((it.change_pct or 0) >= 0) ] if type=='gainers' else [it for it in items if ((it.change_pct or 0) < 0)]
+                # sort by absolute change_pct desc/asc
+                items.sort(key=lambda x: (x.change_pct or 0), reverse=(type=='gainers'))
                 items = items[:count]
     except Exception:
         items = []
