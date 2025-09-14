@@ -4,7 +4,7 @@ import Settings from './pages/Settings'
 import { useSettings } from './store/useSettings'
 import { setLang, t } from './i18n'
 import { useApp } from './store/useApp'
-import Movers from './pages/Movers'
+import Movers from './pages/Movers.tsx'
 
 const App: React.FC = () => {
   const { language, init } = useSettings()
