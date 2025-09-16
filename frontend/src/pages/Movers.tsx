@@ -5,7 +5,7 @@ import { useApp } from '../store/useApp'
 import { useHome } from '../store/useHome'
 
 const fmtNum = (v: any) => v === null || v === undefined ? '-' : Number(v).toLocaleString()
-const fmtPct = (v: any) => v === null || v === undefined ? '-' : `${(Number(v) * 100).toFixed(2)}%`
+const fmtPct = (v: any) => v === null || v === undefined ? '-' : `${Number(v).toFixed(2)}%`
 
 const Movers: React.FC = () => {
   const [market, setMarket] = useState<Market>('US')
