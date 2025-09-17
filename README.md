@@ -36,6 +36,14 @@ Stock MCPilot is a cross‑platform desktop application (macOS/Windows via Tauri
 - Caching daily prices into SQLite
 - Tauri minimal configuration
 
+Additional recently added features (2025‑09):
+- Movers page: gainers / losers with strict market symbol filtering & percent normalization
+- Upcoming Earnings page: forward US earnings dates (subset) with graceful empty HK/CN
+- Local LLM analysis robustness: extended timeouts, fallback generate endpoint, reasoning tag cleanup
+- Global i18n (EN / ZH) applied to new navigation & Upcoming/Movers pages
+- Improved brush logic (fixed previous data slicing bug; stable range label)
+- Route hardening (regex + ordering) to prevent 404/422 on `/stocks/upcoming_earnings`
+
 Planned (Roadmap excerpt):
 - Technical indicators (MA / RSI / MACD / ATR)
 - ECharts candlestick + overlayed indicators
@@ -182,9 +190,15 @@ cargo tauri build
   - End date fetch includes +1 day to account for yfinance's right‑open interval
 
 ### 1.8.1 REST Endpoints (selection)
+- GET `/health`: service health probe
 - GET `/stocks/{symbol}`: daily rows + summary
 - GET `/stocks/{symbol}/earnings`: earnings dates with EPS and next earnings date
 - GET `/stocks/{symbol}/news`: up to 10 recent text headlines (cached, FIFO)
+- GET `/stocks/movers?market=US|HK|CN&type=gainers|losers&count=10`: top movers (normalized pct change)
+- GET `/stocks/upcoming_earnings?market=US|HK|CN&days=14&limit=50`: upcoming earnings (US implemented)
+- POST `/analysis`: model analysis (local LLM currently)
+- GET `/settings`: retrieve saved settings
+- POST `/settings`: update settings
 
 ### 1.8.2 News Caching & Sources
 - Cache: SQLite `news` table, primary key (symbol, market, published_at)
@@ -247,6 +261,14 @@ Stock MCPilot 是一个跨平台 (macOS/Windows) 桌面应用，通过本地或�
 - 设置页（模式 / API Key / 本地模型）
 - 日线数据 SQLite 缓存
 - Tauri 最小配置
+
+近期新增功能（2025‑09）：
+- 涨跌榜页面：按市场展示涨幅榜 / 跌幅榜，严格过滤跨市场代码并规范化涨跌幅
+- 即将披露财报页面：抓取美股部分标的未来财报日期，港/沪深暂为空占位
+- 本地 LLM 分析增强：延长超时、增加 fallback generate、清理思维标签
+- 全局中英文切换覆盖新页面（涨跌榜 / 即将财报）
+- 图表 Brush 逻辑修复与区间标签稳定
+- 路由与正则加固，避免 `/stocks/upcoming_earnings` 被动态捕获导致 404/422
 
 计划（路线图摘录）：
 - 技术指标 (MA / RSI / MACD / ATR)
@@ -351,9 +373,15 @@ VITE_API_BASE=http://127.0.0.1:8000
   - 拉取时 end 向后 +1 天以适配 yfinance 右开区间；
 
 ### 2.8.1 REST 接口（节选）
-- GET `/stocks/{symbol}`：返回日线与统计摘要
-- GET `/stocks/{symbol}/earnings`：返回财报日期、EPS 相关数据与下一次财报日
-- GET `/stocks/{symbol}/news`：返回最多 10 条新闻文本标题（本地缓存，FIFO）
+- GET `/health`：健康检查
+- GET `/stocks/{symbol}`：日线与统计摘要
+- GET `/stocks/{symbol}/earnings`：财报日期、EPS 及下一次财报日（尽力）
+- GET `/stocks/{symbol}/news`：最多 10 条纯文本新闻（缓存 FIFO）
+- GET `/stocks/movers?market=US|HK|CN&type=gainers|losers&count=10`：涨跌榜（规范化涨跌幅）
+- GET `/stocks/upcoming_earnings?market=US|HK|CN&days=14&limit=50`：即将财报（当前仅美股实现）
+- POST `/analysis`：模型分析（本地 LLM）
+- GET `/settings`：获取设置
+- POST `/settings`：更新设置
 
 ### 2.8.2 资讯缓存与数据源
 - 缓存：SQLite `news` 表，主键 (symbol, market, published_at)
@@ -385,3 +413,25 @@ MIT (参见 `LICENSE`).
 ---
 
 欢迎提交 Issue / PR 一起完善 Stock MCPilot。
+
+---
+
+## 3. 更新日志 / Changelog (excerpt)
+
+### 2025-09-16
+- Added Movers endpoint & page (strict market filtering, pct normalization)
+- Added Upcoming Earnings endpoint & page (US subset forward dates)
+- Strengthened routing to prevent dynamic path capture (404 → 200 for upcoming)
+- Implemented EN/ZH i18n across new pages
+- Hardened local LLM provider (timeouts, fallback, reasoning tag strip)
+- Fixed brush slicing bug; added visible range label stability
+
+### 2025-09-10
+- Earnings panel refinement & scrolling layout
+- News caching with RSS fallback
+
+### 2025-09-05
+- Intraday live update logic
+
+### 2025-09-01
+- Initial scaffold (price fetch, summary stats, basic analysis, settings)
