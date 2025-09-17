@@ -61,3 +61,10 @@ export async function fetchMovers(market: Market, type: MoversType = 'gainers', 
   const { data } = await client.get<MoversResponse>(`/stocks/movers`, { params: { market, type, count } })
   return data
 }
+
+export interface UpcomingEarningsItem { symbol: string; name?: string | null; earnings_date?: string | null; session?: string | null }
+export interface UpcomingEarningsResponse { market: Market; count: number; items: UpcomingEarningsItem[] }
+export async function fetchUpcomingEarnings(market: Market, days = 14, limit = 50){
+  const { data } = await client.get<UpcomingEarningsResponse>(`/stocks/upcoming_earnings`, { params: { market, days, limit } })
+  return data
+}

@@ -57,6 +57,11 @@ const dict: Record<Lang, Record<string, string>> = {
   , 'table.change_pct': 'Change %'
   , 'table.volume': 'Volume'
   , 'table.market_cap': 'Market Cap'
+  , 'nav.upcoming': 'Upcoming'
+  , 'upcoming.earnings_date': 'Earnings Date'
+  , 'upcoming.session': 'Session'
+  , 'upcoming.pre': 'Pre'
+  , 'upcoming.post': 'Post'
   },
   zh: {
     'search.placeholder': '股票代码',
@@ -113,6 +118,11 @@ const dict: Record<Lang, Record<string, string>> = {
   , 'table.change_pct': '涨跌幅'
   , 'table.volume': '成交量'
   , 'table.market_cap': '市值'
+  , 'nav.upcoming': '即将财报'
+  , 'upcoming.earnings_date': '财报日期'
+  , 'upcoming.session': '时段'
+  , 'upcoming.pre': '盘前'
+  , 'upcoming.post': '盘后'
   }
 }
 
