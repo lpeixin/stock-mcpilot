@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 from fastapi import APIRouter, HTTPException, Query
 from ..schemas.stocks import StockDailyResponse, StockAnalysisSummary, EarningsResponse, EarningsEvent, AnalystEstimates, NewsResponse, NewsItem, MoversResponse, MoversItem
+from ..schemas.stocks import UpcomingEarningsResponse, UpcomingEarningsItem
 from functools import lru_cache
 import yfinance as yf
 from ..storage.cache import get_price_data, maybe_update_intraday, fetch_news
@@ -381,3 +382,93 @@ def get_stock_news(symbol: str, market: str = Query("US", regex="^(US|HK|CN)$"))
         except Exception:
             pass
     return NewsResponse(symbol=symbol, market=market, items=items[:10])
+
+
+@router.get("/upcoming_earnings", response_model=UpcomingEarningsResponse)
+def get_upcoming_earnings(market: str = Query("US", regex="^(US|HK|CN)$"), days: int = Query(14, ge=1, le=60), limit: int = Query(50, ge=1, le=200)):
+    """Return upcoming earnings (best-effort).
+
+    Current implementation:
+    - US: Scrape yfinance earnings calendar via tickers derived from major indices ETFs components fallback (simplified) or yfinance calendar endpoints if accessible.
+    - HK/CN: Placeholder returns empty (akshare integration could be added later).
+    """
+    items: list[UpcomingEarningsItem] = []
+    from datetime import datetime, timedelta
+    end_date = datetime.utcnow().date() + timedelta(days=days)
+    if market == 'US':
+        # Broaden sample list (top weights of S&P/Nasdaq + a few others)
+        sample_symbols = [
+            'AAPL','MSFT','AMZN','GOOGL','META','NVDA','TSLA','ORCL','INTC','NFLX','CRM','AMD','QCOM','CSCO','ADBE','PYPL','PEP','COST','AVGO','TXN',
+            'JPM','BAC','WFC','V','MA','KO','PFE','ABBV','MRK','XOM','CVX','UNH','HD','WMT','DIS','NKE','LIN','TMO','ABNB','SNOW','SHOP'
+        ]
+        import yfinance as yf, pandas as pd
+        today = datetime.utcnow().date()
+        for sym in sample_symbols:
+            if len(items) >= limit:
+                break
+            try:
+                t = yf.Ticker(sym)
+                # Try get_earnings_dates first for forward dates
+                earns_df = None
+                if hasattr(t, 'get_earnings_dates'):
+                    try:
+                        earns_df = t.get_earnings_dates(limit=12)
+                    except Exception:
+                        earns_df = None
+                future_date = None
+                if earns_df is not None and not earns_df.empty:
+                    # index holds dates; pick the first date >= today within window
+                    for idx in earns_df.index:
+                        try:
+                            d = idx.date() if hasattr(idx, 'date') else pd.to_datetime(idx).date()
+                            if d >= today and d <= end_date:
+                                future_date = d
+                                break
+                        except Exception:
+                            continue
+                # Fallback to calendar
+                if future_date is None:
+                    cal = None
+                    for attr in ['get_calendar','calendar']:
+                        v = getattr(t, attr, None)
+                        try:
+                            cal = v() if callable(v) else v
+                            if cal is not None and hasattr(cal,'empty') and not cal.empty:
+                                break
+                        except Exception:
+                            continue
+                    if cal is not None and hasattr(cal,'to_dict'):
+                        dct = cal.to_dict()
+                        flat_vals = []
+                        for k, vs in dct.items():
+                            if isinstance(vs, dict):
+                                vs = list(vs.values())
+                            for v in (vs or []):
+                                flat_vals.append(v)
+                        for v in flat_vals:
+                            try:
+                                ts = pd.to_datetime(v, errors='coerce')
+                                if ts is not None and ts is not pd.NaT:
+                                    dd = ts.date()
+                                    if dd >= today and dd <= end_date:
+                                        future_date = dd
+                                        break
+                            except Exception:
+                                continue
+                if future_date:
+                    # Fetch company short name best-effort
+                    short_name = None
+                    try:
+                        info = getattr(t, 'info', {}) if hasattr(t, 'info') else {}
+                        if isinstance(info, dict):
+                            short_name = info.get('shortName') or info.get('longName')
+                    except Exception:
+                        short_name = None
+                    items.append(UpcomingEarningsItem(symbol=sym, name=short_name, earnings_date=str(future_date), session=None))
+            except Exception:
+                continue
+        items.sort(key=lambda x: x.earnings_date or '')
+    else:
+        # HK/CN not implemented yet -> return empty
+        items = []
+    return UpcomingEarningsResponse(market=market, count=len(items), items=items)

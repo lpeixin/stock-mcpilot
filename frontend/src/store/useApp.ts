@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-type Page = 'home' | 'settings' | 'movers'
+type Page = 'home' | 'settings' | 'movers' | 'upcoming'
 
 interface AppState {
   page: Page

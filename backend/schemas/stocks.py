@@ -89,3 +89,16 @@ class MoversResponse(BaseModel):
     type: str  # 'gainers' | 'losers'
     count: int
     items: list[MoversItem] = []
+
+
+class UpcomingEarningsItem(BaseModel):
+    symbol: str
+    name: str | None = None
+    earnings_date: str | None = None  # YYYY-MM-DD or datetime
+    session: str | None = None  # 'pre' | 'post' | None
+
+
+class UpcomingEarningsResponse(BaseModel):
+    market: str
+    count: int
+    items: list[UpcomingEarningsItem] = []
