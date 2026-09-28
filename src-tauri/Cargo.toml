@@ -1,15 +1,30 @@
 [package]
 name = "stock-mcpilot"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
+description = "本地优先的股票数据分析桌面应用"
+license = "MIT"
+
+# 桌面壳的 bin。注意 src/backend.rs 只依赖 std，可以脱离这棵依赖树单独测：
+#   cargo test --manifest-path scripts/backend-rs-test/Cargo.toml
+[[bin]]
+name = "stock-mcpilot"
+path = "src/main.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["shell-open"] }
+# 不要加 features = ["shell-open"] —— 那是 Tauri **v1** 的特性名，v2 没有这个
+# 特性，cargo 会直接报 "tauri does not have that feature" 而整个壳编译不过。
+# v2 里用系统默认程序打开链接走的是 tauri-plugin-opener。
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 [profile.release]
 opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

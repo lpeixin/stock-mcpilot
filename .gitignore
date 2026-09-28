@@ -1,113 +1,246 @@
-# Root ignores
-###############################
-# Core Node / Frontend        #
-###############################
-node_modules/
-dist/
-frontend/dist/
-frontend/.vite/
-.vite/
-*.tsbuildinfo
-*.log
-logs/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-.npm/
+# =============================================================================
+# Stock MCPilot — 不该进仓库的东西
+# =============================================================================
+# 分三类的思路：**密钥**（漏了会出事）、**本机产物**（漏了会脏仓库、体积巨大）、
+# **个人环境痕迹**（漏了会把你的机器信息带上 GitHub）。
+# 每一段里带 ⚠ 的条目是真正有安全含义的，改动时请谨慎。
+# =============================================================================
 
-# Lockfiles (按需保留一个，如果未来需要可删除下列行)
-pnpm-lock.yaml
-yarn.lock
 
-###############################
-# Python / Backend            #
-###############################
+# -----------------------------------------------------------------------------
+# ⚠ 密钥与凭据 —— 这几条最不能删
+# -----------------------------------------------------------------------------
+# 应用自身的密钥不存在仓库里：它落在 ~/.stock-mcpilot/config.json（0600），
+# 这里防的是开发过程中顺手放进项目的那些。
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+*.key
+*.pem
+*.crt
+*.cer
+*.der
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+secrets/
+.secrets/
+credentials.json
+service-account*.json
+*-credentials.json
+.netrc
+.auth/
+.aws/
+.ssh/
+
+
+# -----------------------------------------------------------------------------
+# ⚠ AI Agent 工作区 / 会话数据
+# -----------------------------------------------------------------------------
+# 这些目录里放的是本机助手的工作记忆、会话记录与索引，
+# 常夹带绝对路径、临时决策、甚至调试时粘进去的片段。
+.workbuddy-ai/
+.workbuddy/
+.claude/
+.claude-flow/
+.cursor/
+.aider*
+.codex/
+.continue/
+.specstory/
+.roomodes
+.crush/
+.gemini/
+.qwen/
+.opencode/
+
+# 注意：AGENTS.md / CLAUDE.md 这类**项目级说明文档**是刻意要提交的，
+# 不要顺手加进上面那段 —— 它们是给协作者看的，不是个人痕迹。
+
+
+# -----------------------------------------------------------------------------
+# Python
+# -----------------------------------------------------------------------------
 .venv/
 venv/
+env/
+ENV/
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 *.so
-.mypy_cache/
-.pytest_cache/
-.ruff_cache/
-coverage.xml
-htmlcov/
-.coverage*
+*.egg
 *.egg-info/
 .eggs/
+.conda/
+.python-version
 
-# Data / Cache / Artifacts
+.mypy_cache/
+.pytype/
+.ruff_cache/
+.pytest_cache/
+.hypothesis/
+.tox/
+.nox/
+coverage.xml
+.coverage
+.coverage.*
+htmlcov/
+nosetests.xml
+junit*.xml
+
+
+# -----------------------------------------------------------------------------
+# 数据 / 缓存 / 运行期产物
+# -----------------------------------------------------------------------------
+# SQLite 开了 WAL 模式会额外生成 -wal / -shm 两个旁路文件，它们和主库是一体的、
+# 随时会被 checkpoint 清掉，单独提交没有意义。
 backend/storage/*.db
+backend/storage/*.db-wal
+backend/storage/*.db-shm
 backend/storage/*.sqlite
+backend/storage/*.sqlite3
 backend/storage/*.parquet
 backend/storage/cache/
 data/
 *.parquet
+*.duckdb
 
-###############################
-# Rust / Tauri                #
-###############################
+
+# -----------------------------------------------------------------------------
+# Node / 前端
+# -----------------------------------------------------------------------------
+node_modules/
+dist/
+frontend/dist/
+frontend/.vite/
+.vite/
+.turbo/
+frontend/.turbo/
+.vitest/
+*.tsbuildinfo
+.eslintcache
+.npm/
+.parcel-cache/
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# 只保留一种包管理器的锁文件策略：npm 的 package-lock.json 提交，
+# 其余两个不提交，避免同一个依赖树出现三份互相打架的锁。
+pnpm-lock.yaml
+yarn.lock
+
+
+# -----------------------------------------------------------------------------
+# Rust / Tauri
+# -----------------------------------------------------------------------------
 target/
 src-tauri/target/
 src-tauri/gen/
 src-tauri/bundled/
-*.dSYM/
-*.pdb
+*.rs.bk
 
-###############################
-# Environment & Secrets       #
-###############################
-.env
-.env.*
-!.env.example
-*.key
-*.pem
-*.crt
-secrets/
+# PyInstaller 产出的 sidecar 有几百 MB，绝不能进仓库；
+# 用 scripts/build-sidecar.sh 现打现用（脚本末尾自带冒烟测试）。
+src-tauri/binaries/
 
-###############################
-# OS Specific                 #
-###############################
-.DS_Store
-Thumbs.db
-Icon?
-ehthumbs.db
-Desktop.ini
-
-###############################
-# Editor / IDE                #
-###############################
-.vscode/
-.idea/
-*.swp
-*.swo
-*.orig
-*~
-*.iml
-
-###############################
-# Misc & Temp                 #
-###############################
-tmp/
-/tmp/
-temp/
-.cache/
-.parcel-cache/
-.eslintcache
-__generated__/
-*.pid
-*.pid.lock
-*.bak
-*.backup
-profiling/
-
-# Build outputs (desktop bundles)
+# 打包产物
+build/
 *.app
 *.dmg
 *.msi
 *.exe
 *.AppImage
+*.snap
+*.deb
+*.rpm
+*.dSYM/
+*.pdb
+*.hprof
 
+# Cargo.lock 刻意**不**忽略：这是个可执行程序（不是库），
+# 锁住依赖版本才能让每个人构建出一样的二进制。
+
+
+# -----------------------------------------------------------------------------
+# 日志 / 临时文件
+# -----------------------------------------------------------------------------
+*.log
+logs/
+tmp/
+/tmp/
+temp/
+.cache/
+__generated__/
+*.pid
+*.pid.lock
+*.bak
+*.backup
+*.old
+*.orig
+*.rej
+*.swp
+*.swo
+*.swn
+profiling/
+*.heapsnapshot
+*.cpuprofile
+
+
+# -----------------------------------------------------------------------------
+# 编辑器 / IDE
+# -----------------------------------------------------------------------------
+.vscode/
+.idea/
+.history/
+*.iml
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.settings/
+*.code-workspace
+
+
+# -----------------------------------------------------------------------------
+# 操作系统
+# -----------------------------------------------------------------------------
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+.AppleDouble
+.LSOverride
+.DocumentRevisions-V100
+.TemporaryItems
+
+# 自定义文件夹图标（macOS 会在目录里塞一个名为 "Icon" + 回车的文件）。
+# ⚠ 这里**故意只写 `Icon`，不写常见的 `Icon?`**：
+#   macOS 上 core.ignorecase=true，而 `Icon?` 的 `?` 匹配任意一个字符，
+#   于是 "icons" 会被当成 "Icon?" 命中 —— 整个 src-tauri/icons/ 目录
+#   （应用图标集，编译期必需）会被静默忽略，clone 下来直接编译失败。
+Icon
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+*.stackdump
+
+# Linux
+.directory
+*.kate-swp

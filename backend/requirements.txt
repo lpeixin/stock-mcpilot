@@ -1,12 +1,26 @@
+# Stock MCPilot 后端依赖
+#
+# 安装：pip install -r backend/requirements.txt
+#
+# 这里只列**被代码直接 import 的**包。重构后的 LLM 层是直接走 httpx 手写协议的
+# （backend/providers/），所以 langchain / litellm 已经不再需要 —— 之前它们一直
+# 留在这个文件里，会让每个照文档装环境的人白装上百 MB 的依赖树。
+
+# --- Web 框架 ---
 fastapi
 uvicorn
 pydantic
-sqlalchemy
-pandas
-yfinance
-akshare
-langchain
-litellm
-python-dotenv
+
+# --- 行情数据 ---
+pandas          # 时间序列处理
+numpy           # 指标计算（之前靠 pandas 间接带入，属于隐性依赖，显式声明）
+yfinance        # 美股 / 港股主数据源
+akshare         # A 股增强（可选，缺失时优雅降级）
+
+# --- 存储与网络 ---
+sqlalchemy      # 本地行情缓存
+httpx           # LLM 调用与行情抓取
+
+# --- 配置 ---
+python-dotenv   # 可选：读取项目根目录的 .env（缺失时自动跳过）
 typing-extensions
-httpx

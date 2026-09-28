@@ -1,114 +1,269 @@
-import os
+"""LLM Provider 抽象层。
+
+这里定义三种能力（对话 / 流式对话 / 列出模型）和一个统一的错误类型。具体实现见
+``ollama.py``（Ollama 原生协议）与 ``openai_compat.py``（OpenAI 兼容协议）。
+
+改造要点
+--------
+原实现的 ``CloudProvider`` 是个 mock，返回 ``"[CLOUD MODEL] 模拟调用完成"``；而
+``LocalProvider`` 只读 Ollama 响应的 ``message.content``，遇到推理模型
+（qwen3、deepseek-r1 之类）会因为内容都在 ``message.thinking`` 里而拿到空串，
+最终回退成占位文本。也就是说旧版本的 AI 分析在真机上是坏的。这里一并修掉。
+"""
+
+from __future__ import annotations
+
+import re
 from abc import ABC, abstractmethod
-import json
-from typing import Optional
+from dataclasses import dataclass
+from typing import Iterator, Literal
 
-import httpx
+Role = Literal["system", "user", "assistant"]
 
-settings_state = {
-    "mode": os.getenv("LLM_MODE", "local"),
-    "api_key": os.getenv("LLM_API_KEY"),
-    "local_model": os.getenv("LLM_LOCAL_MODEL", "llama3"),
-    "language": os.getenv("APP_LANGUAGE", "en"),  # 'en' or 'zh'
-}
 
-class BaseProvider(ABC):
-    @abstractmethod
-    def generate(self, prompt: str) -> str:  # pragma: no cover - simple stub
-        ...
+@dataclass
+class ChatMessage:
+    role: Role
+    content: str
 
-class LocalProvider(BaseProvider):
-    def _ollama_endpoint(self) -> str:
-        return os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")
+    def to_dict(self) -> dict:
+        return {"role": self.role, "content": self.content}
 
-    def _postprocess(self, text: str) -> str:
+
+# --------------------------------------------------------------------------
+# 错误
+# --------------------------------------------------------------------------
+
+ErrorKind = Literal[
+    "config",       # 配置不完整，比如没填 base_url
+    "connection",   # 连不上（服务没启动、端口不对、被墙）
+    "auth",         # 401/403，密钥错或没权限
+    "not_found",    # 404，模型不存在或端点路径不对
+    "timeout",      # 超时
+    "rate_limit",   # 429
+    "server",       # 5xx
+    "bad_response", # 返回体不是预期结构
+    "empty",        # 调用成功但模型没吐出内容
+]
+
+
+class LLMError(Exception):
+    """带机器可读 kind 的 LLM 调用错误。
+
+    ``message`` 必须是**可以直接展示给用户**的中文说明，且绝不能包含 API Key。
+    """
+
+    def __init__(self, message: str, *, kind: ErrorKind = "server", status: int | None = None):
+        super().__init__(message)
+        self.message = message
+        self.kind = kind
+        self.status = status
+
+    def to_dict(self) -> dict:
+        return {"kind": self.kind, "message": self.message, "status": self.status}
+
+
+# --------------------------------------------------------------------------
+# 文本后处理
+# --------------------------------------------------------------------------
+
+_THINK_BLOCK_RE = re.compile(r"<think(?:ing)?>[\s\S]*?</think(?:ing)?>", re.IGNORECASE)
+_THINK_OPEN_RE = re.compile(r"<think(?:ing)?>", re.IGNORECASE)
+_FINAL_ANSWER_RE = re.compile(r"^\s*Final Answer:\s*", re.IGNORECASE)
+
+THINK_TAGS: tuple[tuple[str, str], ...] = ((" thinking", "<｜end▁of▁thinking｜>"), ("<thinking>", "</thinking>"))
+
+
+def strip_think(text: str) -> str:
+    """剥掉推理模型的思维链标签。未闭合的块按截断处理。"""
+    if not text:
+        return text
+    text = _THINK_BLOCK_RE.sub("", text)
+    open_match = _THINK_OPEN_RE.search(text)
+    if open_match:
+        text = text[: open_match.start()]
+    text = _FINAL_ANSWER_RE.sub("", text)
+    return text.strip()
+
+
+class ThinkTagFilter:
+    """流式场景下剥离 `` thinking...<｜end▁of▁thinking｜>``。
+
+    必须跨 chunk 保持状态，因为标签可能被切在两次 yield 之间
+    （比如前一个 chunk 以 ``"<thi"`` 结尾）。这里用一个小的状态机处理。
+    """
+
+    def __init__(self) -> None:
+        self._buf = ""
+        self._inside = False
+        self._max_open = max(len(o) for o, _ in THINK_TAGS)
+        self._max_close = max(len(c) for _, c in THINK_TAGS)
+
+    def feed(self, text: str) -> str:
         if not text:
-            return text
-        # Remove common reasoning/thinking tags emitted by some models (e.g., deepseek-r1)
-        import re
-        # Strip <think>...</think> blocks
-        text = re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.IGNORECASE)
-        # Strip XML-ish thinking blocks
-        text = re.sub(r"<thinking>[\s\S]*?</thinking>", "", text, flags=re.IGNORECASE)
-        # Remove leading 'Final Answer:' if present
-        text = re.sub(r"^\s*Final Answer:\s*", "", text, flags=re.IGNORECASE)
-        return text.strip()
+            return ""
+        self._buf += text
+        out: list[str] = []
 
-    def _try_ollama(self, prompt: str) -> Optional[str]:
-        model = settings_state.get('local_model') or 'llama3'
-        url = self._ollama_endpoint().rstrip('/') + '/api/chat'
-        payload = {
-            "model": model,
-            "messages": [
-                {"role": "system", "content": "你是资深量化与基本面结合的股票分析助手, 输出要结构化列出: 1) 概览 2) 短期动量 3) 波动与风险 4) 机会与关注点 5) 免责声明。避免过度乐观措辞。"},
-                {"role": "user", "content": prompt}
-            ],
-            "stream": False,
-        }
+        while self._buf:
+            lowered = self._buf.lower()
+            if not self._inside:
+                found = None
+                for opener, _ in THINK_TAGS:
+                    idx = lowered.find(opener)
+                    if idx != -1 and (found is None or idx < found[0]):
+                        found = (idx, opener)
+                if found is None:
+                    # 没有开标签：吐出去，但留下可能是半个标签的尾巴。
+                    keep = self._max_open - 1
+                    if len(self._buf) <= keep:
+                        break
+                    out.append(self._buf[:-keep])
+                    self._buf = self._buf[-keep:]
+                    break
+                idx, opener = found
+                out.append(self._buf[:idx])
+                self._buf = self._buf[idx + len(opener):]
+                self._inside = True
+            else:
+                found = None
+                for _, closer in THINK_TAGS:
+                    idx = lowered.find(closer)
+                    if idx != -1 and (found is None or idx < found[0]):
+                        found = (idx, closer)
+                if found is None:
+                    # 思维链内容整段丢弃，只留可能是半个闭标签的尾巴。
+                    keep = self._max_close - 1
+                    self._buf = self._buf[-keep:] if len(self._buf) > keep else self._buf
+                    break
+                idx, closer = found
+                self._buf = self._buf[idx + len(closer):]
+                self._inside = False
+
+        return "".join(out)
+
+    def flush(self) -> str:
+        """流结束时调用。未闭合的思维链内容一律丢弃。"""
+        if self._inside:
+            self._buf = ""
+            self._inside = False
+            return ""
+        rest, self._buf = self._buf, ""
+        return rest
+
+
+# --------------------------------------------------------------------------
+# Provider
+# --------------------------------------------------------------------------
+
+class LLMProvider(ABC):
+    """所有 LLM 后端的统一接口。"""
+
+    #: 供 UI 展示的后端名称
+    display_name: str = "LLM"
+
+    def __init__(self, settings: dict):
+        self.settings = settings or {}
+
+    # -- 配置读取 ---------------------------------------------------------
+    @property
+    def base_url(self) -> str:
+        return (self.settings.get("base_url") or "").strip()
+
+    @property
+    def api_key(self) -> str:
+        return (self.settings.get("api_key") or "").strip()
+
+    @property
+    def model(self) -> str:
+        return (self.settings.get("model") or "").strip()
+
+    @property
+    def timeout(self) -> float:
         try:
-            # Increase timeout to support slower local models (e.g., deepseek-r1:8b)
-            with httpx.Client(timeout=120) as client:
-                resp = client.post(url, json=payload)
-            if resp.status_code != 200:
-                return self._try_ollama_generate(prompt, model)
-            data = resp.json()
-            # Ollama (non-stream) 返回包含 message/content
-            message = data.get('message') or {}
-            content = message.get('content')
-            if content:
-                return self._postprocess(content)
-            # 某些版本可能直接有 'content'
-            if 'content' in data and isinstance(data['content'], str):
-                return self._postprocess(data['content'])
-            # If chat returns nothing, try generate endpoint
-            return self._try_ollama_generate(prompt, model)
-        except Exception:
-            return self._try_ollama_generate(prompt, model)
+            value = float(self.settings.get("timeout") or 300)
+        except (TypeError, ValueError):
+            value = 300.0
+        return max(5.0, value)
 
-    def _try_ollama_generate(self, prompt: str, model: Optional[str] = None) -> Optional[str]:
-        model = model or (settings_state.get('local_model') or 'llama3')
-        url = self._ollama_endpoint().rstrip('/') + '/api/generate'
-        sys = "你是资深量化与基本面结合的股票分析助手, 输出要结构化列出: 1) 概览 2) 短期动量 3) 波动与风险 4) 机会与关注点 5) 免责声明。避免过度乐观措辞。"
-        full_prompt = f"{sys}\n\n用户输入:\n{prompt}"
-        payload = {
-            "model": model,
-            "prompt": full_prompt,
-            "stream": False,
-        }
+    def _require_model(self) -> str:
+        if not self.model:
+            raise LLMError(
+                "尚未选择模型。请到设置页拉取模型列表或手动填写模型名称。",
+                kind="config",
+            )
+        return self.model
+
+    def _require_base_url(self) -> str:
+        if not self.base_url:
+            raise LLMError("尚未填写服务地址（Base URL）。", kind="config")
+        return self.base_url
+
+    # -- 能力 -------------------------------------------------------------
+    @abstractmethod
+    def chat(
+        self,
+        messages: list[ChatMessage],
+        *,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> str:
+        """一次性返回完整回复。"""
+
+    @abstractmethod
+    def stream(
+        self,
+        messages: list[ChatMessage],
+        *,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> Iterator[str]:
+        """逐块返回回复增量。"""
+
+    @abstractmethod
+    def list_models(self) -> list[str]:
+        """列出该后端可用的模型名。"""
+
+    # -- 便捷方法 ---------------------------------------------------------
+    def probe(self) -> dict:
+        """连通性 + 配置有效性检查，供设置页的"测试连接"按钮使用。"""
+        import time
+
+        started = time.perf_counter()
         try:
-            with httpx.Client(timeout=120) as client:
-                resp = client.post(url, json=payload)
-            if resp.status_code != 200:
-                return None
-            data = resp.json()
-            # /api/generate returns { response: string, ... }
-            content = data.get('response')
-            if isinstance(content, str) and content.strip():
-                return self._postprocess(content)
-            return None
-        except Exception:
-            return None
+            models = self.list_models()
+        except LLMError as exc:
+            return {
+                "ok": False,
+                "kind": exc.kind,
+                "message": exc.message,
+                "latency_ms": int((time.perf_counter() - started) * 1000),
+                "models": [],
+                "model_ready": False,
+            }
+        except Exception as exc:  # pragma: no cover - 兜底
+            return {
+                "ok": False,
+                "kind": "server",
+                "message": f"连接失败：{exc}",
+                "latency_ms": int((time.perf_counter() - started) * 1000),
+                "models": [],
+                "model_ready": False,
+            }
 
-    def generate(self, prompt: str) -> str:
-        # 优先尝试本地 Ollama, 失败则回退占位文本
-        result = self._try_ollama(prompt)
-        if result:
-            return result
-        lang = settings_state.get('language', 'en')
-        if lang == 'zh':
-            return f"[LOCAL MODEL {settings_state.get('local_model')}] (Ollama 不可用或调用失败, 使用占位结果) 摘要分析: 输入长度 {len(prompt)} 字符。"
-        else:
-            return f"[LOCAL MODEL {settings_state.get('local_model')}] (Ollama unavailable, fallback placeholder). Prompt length {len(prompt)} chars."
+        latency = int((time.perf_counter() - started) * 1000)
+        model_ready = bool(self.model and self.model in models) if models else bool(self.model)
+        note = None
+        if not self.model:
+            note = "连接成功，但尚未选择模型。"
+        elif models and self.model not in models:
+            note = f"连接成功，但模型「{self.model}」不在可用列表中。"
 
-class CloudProvider(BaseProvider):
-    def generate(self, prompt: str) -> str:
-        # TODO: 使用 LiteLLM / OpenAI 接口
-        key = settings_state.get('api_key')
-        lang = settings_state.get('language', 'en')
-        if not key:
-            return "[CLOUD] 缺少 API Key, 返回占位分析。" if lang == 'zh' else "[CLOUD] Missing API Key, placeholder analysis."
-        return (f"[CLOUD MODEL] 模拟调用完成。Prompt 长度 {len(prompt)} 字符。" if lang == 'zh' 
-                else f"[CLOUD MODEL] Mock call complete. Prompt length {len(prompt)} chars.")
-
-def get_provider() -> BaseProvider:
-    return LocalProvider() if settings_state.get("mode") == "local" else CloudProvider()
+        return {
+            "ok": True,
+            "kind": None,
+            "message": note or f"连接成功，发现 {len(models)} 个模型。",
+            "latency_ms": latency,
+            "models": models,
+            "model_ready": model_ready,
+        }

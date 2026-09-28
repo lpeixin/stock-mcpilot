@@ -1,17 +1,36 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Stock MCPilot",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "identifier": "com.example.stockmcpilot",
   "build": {
+    "beforeDevCommand": "cd ../frontend && npm install && npm run dev",
     "beforeBuildCommand": "cd ../frontend && npm install && npm run build",
-    "beforeDevCommand": "cd ../frontend && npm run dev",
-  "devUrl": "http://localhost:5173",
-  "frontendDist": "../frontend/dist"
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../frontend/dist"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
-      { "title": "Stock MCPilot", "width": 1200, "height": 800 }
-    ]
+      {
+        "label": "main",
+        "title": "Stock MCPilot",
+        "width": 1360,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 640
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:* ipc: http://ipc.localhost; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self'",
+      "devCsp": "default-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:* ws://localhost:* ws://127.0.0.1:* ipc: http://ipc.localhost; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Finance",
+    "shortDescription": "本地优先的股票数据分析",
+    "longDescription": "股票行情、财报、新闻与 AI 解读。所有数据与密钥都留在本机。"
   }
 }

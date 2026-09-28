@@ -1,0 +1,10 @@
+[package]
+name = "backend-rs-test"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# 显式声明空 workspace：避免被将来可能出现的父级 workspace 收编。
+[workspace]
+
+[dependencies]
